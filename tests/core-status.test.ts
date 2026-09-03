@@ -5,30 +5,31 @@ import { asNextRes, mockRes, nextReq } from './helpers';
 
 const { route, get, post, patch, put, del } = createRoute();
 
-describe('envelope wrapping', () => {
-  it('wraps objects as { data }', async () => {
+describe('the return value is the body', () => {
+  it('objects go out as-is, as application/json', async () => {
     const handler = route({ GET: get({ handler: async () => ({ id: '1' }) }) });
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
     expect(res.statusCode).toBe(200);
-    expect(res.jsonBody).toEqual({ data: { id: '1' } });
+    expect(res.jsonBody).toEqual({ id: '1' });
+    expect(res.headers['content-type']).toBe('application/json');
   });
 
-  it('wraps arrays as { data, count }', async () => {
+  it('arrays go out as-is: no wrapper, no count', async () => {
     const handler = route({ GET: get({ handler: async () => [1, 2, 3] }) });
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
-    expect(res.jsonBody).toEqual({ data: [1, 2, 3], count: 3 });
+    expect(res.jsonBody).toEqual([1, 2, 3]);
   });
 
-  it('wraps primitives as { data }', async () => {
+  it('primitives too', async () => {
     const handler = route({ GET: get({ handler: async () => 'hello' }) });
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
-    expect(res.jsonBody).toEqual({ data: 'hello' });
+    expect(res.jsonBody).toBe('hello');
   });
 
-  it('turns null into 204 with no body on a 200-method', async () => {
+  it('null → 204 with no body on a 200-method', async () => {
     const handler = route({ GET: get({ handler: async () => null }) });
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
@@ -37,7 +38,7 @@ describe('envelope wrapping', () => {
     expect(res.ended).toBe(true);
   });
 
-  it('turns undefined into 204 as well', async () => {
+  it('undefined → 204 as well', async () => {
     const handler = route({ GET: get({ handler: async () => undefined as unknown as null }) });
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
@@ -60,7 +61,7 @@ describe('envelope wrapping', () => {
   });
 });
 
-describe('status map', () => {
+describe('status codes', () => {
   it('GET → 200', async () => {
     const handler = route({ GET: get({ handler: async () => ({}) }) });
     const res = mockRes();
@@ -97,7 +98,7 @@ describe('status map', () => {
     expect(res.jsonBody).toBeUndefined();
   });
 
-  it('unknown method → 405 METHOD_NOT_ALLOWED with an Allow header', async () => {
+  it('unknown method → 405 problem with an Allow header', async () => {
     const handler = route({
       GET: get({ handler: async () => ({}) }),
       DELETE: del({ handler: async () => null }),
@@ -105,8 +106,14 @@ describe('status map', () => {
     const res = mockRes();
     await handler(nextReq({ method: 'PUT' }), asNextRes(res));
     expect(res.statusCode).toBe(405);
-    expect(res.jsonBody).toMatchObject({ code: 'METHOD_NOT_ALLOWED' });
     expect(res.headers.allow).toBe('GET, DELETE');
+    expect(res.jsonBody).toEqual({
+      title: 'Method Not Allowed',
+      status: 405,
+      detail: 'Method PUT not allowed',
+      instance: '/api/test',
+      code: 'METHOD_NOT_ALLOWED',
+    });
   });
 
   it('HEAD runs the GET handler and sends no body', async () => {

@@ -1,15 +1,14 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { isAuthContext } from './auth-context.js';
-import { RouteError } from './errors.js';
+import { PROBLEM_CONTENT_TYPE, RouteError } from './errors.js';
 import { isMethodConfig, type MethodConfigBrand } from './method-config.js';
 import type { HttpMethod, MaybePromise, RouteDeps } from './types.js';
-import { formatIssues } from '../validators/registry.js';
-import { validateSchema } from '../validators/standard-schema.js';
+import { toProblemErrors, validateSchema } from '../validators/standard-schema.js';
 
 /**
  * Framework-free route runtime. Adapters describe their framework
  * through a {@link Transport} and get back a handler builder that owns
- * method dispatch, auth, validation, the response envelope, and errors.
+ * method dispatch, auth, validation, status codes, and errors.
  */
 
 const DEFAULT_STATUS_CODES: Record<HttpMethod, number> = {
@@ -69,7 +68,8 @@ export interface Transport<Req, Res> {
   responseEnded(res: Res): boolean;
   /** True once headers are on the wire; errors can then only be forwarded. */
   headersSent?(res: Res): boolean;
-  sendJson(res: Res, status: number, payload: unknown): void;
+  /** Serialize `payload` as JSON. `contentType` defaults to application/json. */
+  sendJson(res: Res, status: number, payload: unknown, contentType?: string): void;
   sendEmpty(res: Res, status: number): void;
 }
 
@@ -175,12 +175,12 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
         if (methodConfig.body) {
           const result = await validateSchema(methodConfig.body, body);
           if (!result.success) {
-            const details = await formatIssues(result.vendor, result.issues);
+            const errors = toProblemErrors(result.issues);
             deps.hooks?.onBodyValidationFailure?.(
-              { issues: result.issues, details, vendor: result.vendor },
+              { issues: result.issues, errors },
               { req, method, path: stripQuery(transport.path(req)), statusCode: 400, user },
             );
-            throw new RouteError('Validation failed', 400, 'VALIDATION_ERROR', details);
+            throw new RouteError('Validation failed', 400, 'VALIDATION_ERROR', { errors });
           }
           body = result.value;
         }
@@ -189,12 +189,9 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
         if (methodConfig.query) {
           const result = await validateSchema(methodConfig.query, query);
           if (!result.success) {
-            throw new RouteError(
-              'Invalid query parameters',
-              400,
-              'VALIDATION_ERROR',
-              await formatIssues(result.vendor, result.issues),
-            );
+            throw new RouteError('Invalid query parameters', 400, 'VALIDATION_ERROR', {
+              errors: toProblemErrors(result.issues),
+            });
           }
           query = result.value;
         }
@@ -203,12 +200,9 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
         if (methodConfig.params && transport.params) {
           const result = await validateSchema(methodConfig.params, params);
           if (!result.success) {
-            throw new RouteError(
-              'Invalid path parameters',
-              400,
-              'VALIDATION_ERROR',
-              await formatIssues(result.vendor, result.issues),
-            );
+            throw new RouteError('Invalid path parameters', 400, 'VALIDATION_ERROR', {
+              errors: toProblemErrors(result.issues),
+            });
           }
           params = result.value;
         }
@@ -229,7 +223,7 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
         }
         let handlerResult = await methodConfig.handler(ctx);
 
-        // 6. Validate and wrap the response.
+        // 6. Validate and send the response. The return value is the body.
         if (transport.responseEnded(res)) return;
 
         const statusCode = DEFAULT_STATUS_CODES[method];
@@ -242,10 +236,9 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
         if (methodConfig.response && validateResponses) {
           const result = await validateSchema(methodConfig.response, handlerResult);
           if (!result.success) {
-            const details = await formatIssues(result.vendor, result.issues);
-            log('Response validation failed:', details);
+            log('Response validation failed:', toProblemErrors(result.issues));
             log('Actual response:', JSON.stringify(handlerResult, null, 2));
-            throw new RouteError('Response validation failed', 500, 'INTERNAL_ERROR', details);
+            throw new RouteError('Response validation failed', 500, 'INTERNAL_ERROR');
           }
           handlerResult = result.value;
         }
@@ -254,14 +247,7 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
           transport.sendEmpty(res, statusCode);
           return;
         }
-
-        transport.sendJson(
-          res,
-          statusCode,
-          Array.isArray(handlerResult)
-            ? { data: handlerResult, count: handlerResult.length }
-            : { data: handlerResult },
-        );
+        transport.sendJson(res, statusCode, handlerResult);
       } catch (error) {
         const path = stripQuery(transport.path(req));
         const method = transport.method(req) ?? 'unknown';
@@ -272,43 +258,31 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
           return;
         }
 
-        // 1. App-provided mapping first (translate your own error classes).
-        const mapped = deps.errorToResponse?.(error);
-        if (mapped) {
-          deps.hooks?.onError?.(error, { req, method, path, statusCode: mapped.status, user });
-          transport.sendJson(res, mapped.status, mapped.body);
-          return;
-        }
-
-        // 2. RouteError carries its own status. Only 5xx are logged; 4xx are the client's.
-        if (error instanceof RouteError) {
-          deps.hooks?.onError?.(error, { req, method, path, statusCode: error.status, user });
-          if (error.status >= 500) {
+        // App mapping first, then RouteError as thrown. Anything else is a bug.
+        const known = deps.mapError?.(error) ?? (error instanceof RouteError ? error : undefined);
+        if (known) {
+          deps.hooks?.onError?.(error, { req, method, path, statusCode: known.status, user });
+          if (known.status >= 500) {
             log('API Error:', {
-              message: error.message,
-              code: error.code,
-              details: error.details,
-              statusCode: error.status,
+              message: known.message,
+              code: known.code,
+              statusCode: known.status,
+              extensions: known.extensions,
             });
           }
-          transport.sendJson(res, error.status, {
-            error: error.message,
-            code: error.code,
-            details: error.details,
-          });
-          return;
+        } else {
+          deps.hooks?.onError?.(error, { req, method, path, statusCode: 500, user });
+          if (deps.forwardUnhandledToNext && forward) {
+            forward(error);
+            return;
+          }
+          log('Unhandled API error:', error);
         }
 
-        // 3. Anything else is a bug: 500 with a generic body.
-        deps.hooks?.onError?.(error, { req, method, path, statusCode: 500, user });
-
-        if (deps.forwardUnhandledToNext && forward) {
-          forward(error);
-          return;
-        }
-
-        log('Unhandled API error:', error);
-        transport.sendJson(res, 500, { error: 'Internal server error', code: 'INTERNAL_ERROR' });
+        const problem = (
+          known ?? new RouteError('Internal server error', 500, 'INTERNAL_ERROR')
+        ).toProblem(path);
+        transport.sendJson(res, problem.status, problem, PROBLEM_CONTENT_TYPE);
       }
     };
   };

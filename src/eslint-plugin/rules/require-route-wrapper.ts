@@ -9,7 +9,7 @@ export const requireRouteWrapper: RuleModule = {
     schema: [routeNamesSchema],
     messages: {
       notRouteCall:
-        'Default export must be a call to `{{names}}({...})`. Bare handlers bypass auth, validation, and the response envelope.',
+        'Default export must be a call to `{{names}}({...})`. Bare handlers bypass auth, validation, and error handling.',
     },
   },
   create(context) {

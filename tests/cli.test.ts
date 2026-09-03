@@ -354,7 +354,7 @@ describe('routerplate doctor', () => {
     expect(found.stdout).toContain('adapter file found (server/api/route.ts)');
   });
 
-  it('flags multiple validators and out-of-range peers', () => {
+  it('accepts several validators, flags out-of-range peers', () => {
     const dir = makeTempProject();
     run(dir, ['init', '--framework', 'express', '--validator', 'zod', '--yes']);
     stubInstall(dir, 'routerplate', '1.0.0');
@@ -363,7 +363,7 @@ describe('routerplate doctor', () => {
 
     const result = run(dir, ['doctor']);
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain('multiple validators installed (zod, valibot)');
+    expect(result.stdout).toContain('✓ validator installed (zod, valibot)');
     expect(result.stdout).toContain('zod 3.20.0 is below the supported minimum 3.24');
   });
 });

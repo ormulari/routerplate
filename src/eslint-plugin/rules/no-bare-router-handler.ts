@@ -27,12 +27,12 @@ export const noBareRouterHandler: RuleModule = {
     type: 'problem',
     docs: {
       description:
-        'Mount routes as `.all(path, route({...}))`; inline handlers bypass auth, validation, and the envelope.',
+        'Mount routes as `.all(path, route({...}))`; inline handlers bypass auth, validation, and error handling.',
     },
     schema: [],
     messages: {
       bareRouterHandler:
-        'Inline handler on `.{{method}}()`. Mount the resource with `.all(path, route({...}))` so auth, validation, and the envelope apply.',
+        'Inline handler on `.{{method}}()`. Mount the resource with `.all(path, route({...}))` so auth, validation, and error handling apply.',
     },
   },
   create(context) {

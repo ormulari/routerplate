@@ -21,7 +21,7 @@ itemsRouter.all(
   route({
     GET: get({
       response: ItemListSchema,
-      handler: async () => items, // → 200 { data, count }
+      handler: async () => items, // → 200
     }),
     POST: post({
       body: CreateItemSchema, // ctx.body is typed from this
@@ -29,7 +29,7 @@ itemsRouter.all(
       handler: async ({ body }) => {
         const item: Item = { id: String(items.length + 1), name: body.name };
         items.push(item);
-        return item; // → 201 { data }
+        return item; // → 201
       },
     }),
   }),
@@ -82,7 +82,7 @@ itemsRouter.all(
   route({
     GET: get({
       response: ItemListSchema,
-      handler: async () => items, // → 200 { data, count }
+      handler: async () => items, // → 200
     }),
     POST: post({
       body: CreateItemSchema, // ctx.body is typed from this
@@ -90,7 +90,7 @@ itemsRouter.all(
       handler: async ({ body }) => {
         const item: Item = { id: String(items.length + 1), name: body.name };
         items.push(item);
-        return item; // → 201 { data }
+        return item; // → 201
       },
     }),
   }),
@@ -123,9 +123,9 @@ itemsRouter.all(
 `;
 
 exports[`routerplate init > scaffolds a Next.js + zod project (snapshot) > next-adapter 1`] = `
-"import { createRoute } from 'routerplate/next';
+"import { createRoute, RouteError } from 'routerplate/next';
 
-export { RouteError } from 'routerplate/next';
+export { RouteError };
 
 // Your app's route adapter. This is the only file that imports services
 // (auth, db, error tracking). Route files import \`route\` and the helpers
@@ -145,9 +145,9 @@ export const { route, endpoint, get, post, patch, put, del } = createRoute<User,
   // Per-request context, merged into ctx.
   // extend: async ({ req, user }) => ({ db: dbFor(user) }),
 
-  // Map your own error classes. Return undefined to fall through.
-  // errorToResponse: (error) =>
-  //   error instanceof AppError ? { status: 409, body: { error: error.message, code: error.code } } : undefined,
+  // Map your own error classes to a RouteError. Return undefined to fall through.
+  // mapError: (error) =>
+  //   error instanceof AppError ? new RouteError(error.message, 409, error.code) : undefined,
 
   // hooks: {
   //   onBodyValidationFailure: (failure, ctx) => report(failure, ctx),
@@ -186,7 +186,7 @@ const items: Item[] = [{ id: '1', name: 'First item' }];
 export default route({
   GET: get({
     response: ItemListSchema,
-    handler: async () => items, // → 200 { data, count }
+    handler: async () => items, // → 200
   }),
   POST: post({
     body: CreateItemSchema, // ctx.body is typed from this
@@ -194,7 +194,7 @@ export default route({
     handler: async ({ body }) => {
       const item: Item = { id: String(items.length + 1), name: body.name };
       items.push(item);
-      return item; // → 201 { data }
+      return item; // → 201
     },
   }),
 });
@@ -202,9 +202,9 @@ export default route({
 `;
 
 exports[`routerplate init > scaffolds an Express + zod project (snapshot) > express-adapter 1`] = `
-"import { createRoute } from 'routerplate/express';
+"import { createRoute, RouteError } from 'routerplate/express';
 
-export { RouteError } from 'routerplate/express';
+export { RouteError };
 
 // Your app's route adapter. This is the only file that imports services
 // (auth, db, error tracking). Route files import \`route\` and the helpers
@@ -224,9 +224,9 @@ export const { route, endpoint, get, post, patch, put, del } = createRoute<User,
   // Per-request context, merged into ctx.
   // extend: async ({ req, user }) => ({ db: dbFor(user) }),
 
-  // Map your own error classes. Return undefined to fall through.
-  // errorToResponse: (error) =>
-  //   error instanceof AppError ? { status: 409, body: { error: error.message, code: error.code } } : undefined,
+  // Map your own error classes to a RouteError. Return undefined to fall through.
+  // mapError: (error) =>
+  //   error instanceof AppError ? new RouteError(error.message, 409, error.code) : undefined,
 
   // Let your Express error middleware own 500s.
   // forwardUnhandledToNext: true,
@@ -261,7 +261,7 @@ itemsRouter.all(
   route({
     GET: get({
       response: ItemListSchema,
-      handler: async () => items, // → 200 { data, count }
+      handler: async () => items, // → 200
     }),
     POST: post({
       body: CreateItemSchema, // ctx.body is typed from this
@@ -269,7 +269,7 @@ itemsRouter.all(
       handler: async ({ body }) => {
         const item: Item = { id: String(items.length + 1), name: body.name };
         items.push(item);
-        return item; // → 201 { data }
+        return item; // → 201
       },
     }),
   }),

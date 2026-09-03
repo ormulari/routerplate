@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { AuthContext } from './auth-context.js';
-import type { ErrorBody } from './errors.js';
+import type { ProblemError, RouteError } from './errors.js';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -62,10 +62,8 @@ export interface ErrorHookContext<Req = unknown> {
 export interface BodyValidationFailure {
   /** Raw Standard Schema issues from the failing schema. */
   issues: readonly StandardSchemaV1.Issue[];
-  /** The `details` sent to the client (formatter-enriched when available). */
-  details: unknown;
-  /** The schema's `~standard.vendor` string (`zod`, `valibot`, `arktype`, …). */
-  vendor?: string;
+  /** The `errors` sent to the client. */
+  errors: ProblemError[];
 }
 
 export interface RouteHooks<Req = unknown> {
@@ -113,11 +111,12 @@ export interface RouteDeps<Req, Res, User, Extras extends object> {
   extend?: (args: { req: Req; res: Res; user: User | null }) => MaybePromise<Extras>;
 
   /**
-   * Map a thrown value to an HTTP response, e.g. to translate your
-   * app's own error classes. Return `undefined` to fall through to the
-   * built-in handling (RouteError → its status, anything else → 500).
+   * Translate your own error classes into a `RouteError`, so they get
+   * the same problem+json body as everything else. Runs before the
+   * built-in handling; return `undefined` to fall through (RouteError →
+   * its status, anything else → 500).
    */
-  errorToResponse?: (error: unknown) => { status: number; body: ErrorBody } | undefined;
+  mapError?: (error: unknown) => RouteError | undefined;
 
   hooks?: RouteHooks<Req>;
 

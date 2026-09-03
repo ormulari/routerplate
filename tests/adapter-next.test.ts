@@ -27,7 +27,7 @@ describe('routerplate/next (integration through an apiResolver-style shim)', () 
       .get('/api/items?q=x')
       .set('authorization', 'Bearer ok');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ data: [{ hit: 'x', by: 'u1' }], count: 1 });
+    expect(res.body).toEqual([{ hit: 'x', by: 'u1' }]);
   });
 
   it('POST → 201 with { data }', async () => {
@@ -36,7 +36,7 @@ describe('routerplate/next (integration through an apiResolver-style shim)', () 
       .set('authorization', 'Bearer ok')
       .send({ name: 'thing' });
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ data: { name: 'thing' } });
+    expect(res.body).toEqual({ name: 'thing' });
   });
 
   it('invalid body → 400 VALIDATION_ERROR', async () => {
@@ -45,7 +45,13 @@ describe('routerplate/next (integration through an apiResolver-style shim)', () 
       .set('authorization', 'Bearer ok')
       .send({ name: '' });
     expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: 'Validation failed', code: 'VALIDATION_ERROR' });
+    expect(res.headers['content-type']).toBe('application/problem+json; charset=utf-8');
+    expect(res.body).toMatchObject({
+      title: 'Bad Request',
+      detail: 'Validation failed',
+      code: 'VALIDATION_ERROR',
+      errors: [{ pointer: '/name', detail: expect.any(String) }],
+    });
   });
 
   it('unauthenticated → 401', async () => {

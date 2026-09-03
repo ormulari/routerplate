@@ -13,8 +13,8 @@ class AppError extends Error {
   }
 }
 
-describe('error handling', () => {
-  it('RouteError thrown from a handler carries its status/code/details', async () => {
+describe('errors are RFC 9457 problem details', () => {
+  it('a RouteError becomes { title, status, detail, instance, code } as application/problem+json', async () => {
     const { route, get } = createRoute();
     const handler = route({
       GET: get({
@@ -24,23 +24,53 @@ describe('error handling', () => {
       }),
     });
     const res = mockRes();
-    await handler(nextReq({ method: 'GET' }), asNextRes(res));
+    await handler(nextReq({ method: 'GET', url: '/api/items/x' }), asNextRes(res));
     expect(res.statusCode).toBe(404);
+    expect(res.headers['content-type']).toBe('application/problem+json; charset=utf-8');
     expect(res.jsonBody).toEqual({
-      error: 'Item not found',
+      title: 'Not Found',
+      status: 404,
+      detail: 'Item not found',
+      instance: '/api/items/x',
       code: 'NOT_FOUND',
-      details: { id: 'x' },
+      id: 'x', // extension members ride along at the top level
+    });
+  });
+
+  it('extensions may set a problem `type` and `title`; status/detail/code cannot be overridden', async () => {
+    const { route, get } = createRoute();
+    const handler = route({
+      GET: get({
+        handler: async () => {
+          throw new RouteError('You have 3 credits left.', 402, 'OUT_OF_CREDIT', {
+            type: 'https://example.com/problems/out-of-credit',
+            title: 'Out of credit',
+            status: 200,
+          });
+        },
+      }),
+    });
+    const res = mockRes();
+    await handler(nextReq({ method: 'GET' }), asNextRes(res));
+    expect(res.statusCode).toBe(402);
+    expect(res.jsonBody).toEqual({
+      type: 'https://example.com/problems/out-of-credit',
+      title: 'Out of credit',
+      status: 402,
+      detail: 'You have 3 credits left.',
+      instance: '/api/test',
+      code: 'OUT_OF_CREDIT',
     });
   });
 
   it('factories: notFound / forbidden / conflict', async () => {
     const { route, get } = createRoute();
     const cases = [
-      [RouteError.notFound(), 404, 'NOT_FOUND', 'Not found'],
-      [RouteError.forbidden('No'), 403, 'FORBIDDEN', 'No'],
-      [RouteError.conflict('Taken', { field: 'email' }), 409, 'CONFLICT', 'Taken'],
+      [RouteError.notFound(), 404, 'Not Found', 'NOT_FOUND', 'Not found'],
+      [RouteError.forbidden('No'), 403, 'Forbidden', 'FORBIDDEN', 'No'],
+      [RouteError.conflict('Taken', { field: 'email' }), 409, 'Conflict', 'CONFLICT', 'Taken'],
     ] as const;
-    for (const [error, status, code, message] of cases) {
+    for (const [error, status, title, code, detail] of cases) {
       const handler = route({
         GET: get({
           handler: async () => {
@@ -51,43 +81,25 @@ describe('error handling', () => {
       const res = mockRes();
       await handler(nextReq({ method: 'GET' }), asNextRes(res));
       expect(res.statusCode).toBe(status);
-      expect(res.jsonBody).toMatchObject({ error: message, code });
+      expect(res.jsonBody).toMatchObject({ title, status, detail, code });
     }
   });
 
-  it('errorToResponse takes precedence over the built-ins (even for RouteError)', async () => {
-    const { route, get } = createRoute({
-      errorToResponse: (error) =>
-        error instanceof RouteError
-          ? { status: 418, body: { error: 'mapped', code: 'MAPPED' } }
-          : undefined,
-    });
-    const handler = route({
-      GET: get({
-        handler: async () => {
-          throw new RouteError('original', 404, 'NOT_FOUND');
-        },
-      }),
-    });
-    const res = mockRes();
-    await handler(nextReq({ method: 'GET' }), asNextRes(res));
-    expect(res.statusCode).toBe(418);
-    expect(res.jsonBody).toEqual({ error: 'mapped', code: 'MAPPED' });
-  });
-
-  it('errorToResponse maps app error classes; undefined falls through', async () => {
+  it('mapError translates app errors into RouteErrors and runs before the built-ins', async () => {
     const { route, get } = createRoute({
       hooks: { log: vi.fn() },
-      errorToResponse: (error) =>
-        error instanceof AppError
-          ? { status: 409, body: { error: error.message, code: error.code } }
-          : undefined,
+      mapError: (error) => {
+        if (error instanceof AppError) return new RouteError(error.message, 409, error.code);
+        if (error instanceof RouteError) return new RouteError('remapped', 418, 'TEAPOT');
+        return undefined;
+      },
     });
     const handler = route({
       GET: get({
         handler: async ({ query }) => {
-          if ((query as Record<string, unknown>).kind === 'app')
-            throw new AppError('conflict', 'CONFLICT');
+          const kind = (query as Record<string, unknown>).kind;
+          if (kind === 'app') throw new AppError('conflict', 'CONFLICT');
+          if (kind === 'route') throw RouteError.notFound();
           throw new Error('boom');
         },
       }),
@@ -96,12 +108,27 @@ describe('error handling', () => {
     const mapped = mockRes();
     await handler(nextReq({ method: 'GET', query: { kind: 'app' } }), asNextRes(mapped));
     expect(mapped.statusCode).toBe(409);
-    expect(mapped.jsonBody).toEqual({ error: 'conflict', code: 'CONFLICT' });
+    expect(mapped.jsonBody).toMatchObject({
+      title: 'Conflict',
+      detail: 'conflict',
+      code: 'CONFLICT',
+    });
+
+    const remapped = mockRes();
+    await handler(nextReq({ method: 'GET', query: { kind: 'route' } }), asNextRes(remapped));
+    expect(remapped.statusCode).toBe(418);
+    expect(remapped.jsonBody).toMatchObject({ title: 'Error', code: 'TEAPOT' }); // no phrase for 418
 
     const unmapped = mockRes();
     await handler(nextReq({ method: 'GET', query: {} }), asNextRes(unmapped));
     expect(unmapped.statusCode).toBe(500);
-    expect(unmapped.jsonBody).toEqual({ error: 'Internal server error', code: 'INTERNAL_ERROR' });
+    expect(unmapped.jsonBody).toEqual({
+      title: 'Internal Server Error',
+      status: 500,
+      detail: 'Internal server error',
+      instance: '/api/test',
+      code: 'INTERNAL_ERROR',
+    });
   });
 
   it('a validator error thrown inside a handler is a server bug → 500, nothing leaked', async () => {
@@ -119,10 +146,11 @@ describe('error handling', () => {
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
     expect(res.statusCode).toBe(500);
-    expect(res.jsonBody).toEqual({ error: 'Internal server error', code: 'INTERNAL_ERROR' });
+    expect(res.jsonBody).toMatchObject({ code: 'INTERNAL_ERROR' });
+    expect(res.jsonBody).not.toHaveProperty('errors');
   });
 
-  it('unexpected errors → 500 INTERNAL_ERROR and the default log', async () => {
+  it('unexpected errors → 500 and the default log', async () => {
     const log = vi.fn();
     const { route, get } = createRoute({ hooks: { log } });
     const handler = route({
@@ -153,7 +181,9 @@ describe('error handling', () => {
     await handler(nextReq({ method: 'GET', query: { kind: 'client' } }), asNextRes(mockRes()));
     expect(log).not.toHaveBeenCalled();
 
-    await handler(nextReq({ method: 'GET', query: {} }), asNextRes(mockRes()));
+    const res = mockRes();
+    await handler(nextReq({ method: 'GET', query: {} }), asNextRes(res));
+    expect(res.jsonBody).toMatchObject({ title: 'Service Unavailable', status: 503 });
     expect(log).toHaveBeenCalledWith(
       'API Error:',
       expect.objectContaining({ statusCode: 503, code: 'UPSTREAM_UNAVAILABLE' }),
@@ -165,8 +195,7 @@ describe('error handling', () => {
     const { route, get, post } = createRoute<{ id: string }>({
       authenticate: async () => null,
       hooks: { onError, log: vi.fn() },
-      errorToResponse: (error) =>
-        error instanceof AppError ? { status: 422, body: { error: 'e', code: 'C' } } : undefined,
+      mapError: (error) => (error instanceof AppError ? new RouteError('e', 422, 'C') : undefined),
     });
 
     const handler = route({
@@ -195,11 +224,6 @@ describe('error handling', () => {
     const openRoute = createRoute({ hooks: { onError } });
     const open = openRoute.route({
       POST: openRoute.post({ body: z.object({ n: z.number() }), handler: async () => ({}) }),
-      GET: openRoute.get({
-        handler: async () => {
-          throw new AppError('x', 'C');
-        },
-      }),
     });
     const bodyRes = mockRes();
     await open(nextReq({ method: 'POST', body: {} }), asNextRes(bodyRes));
@@ -218,19 +242,22 @@ describe('error handling', () => {
       }),
     });
     const req = nextReq({ method: 'GET', url: '/api/items/1?token=secret' });
-    await handler(req, asNextRes(mockRes()));
+    const res = mockRes();
+    await handler(req, asNextRes(res));
     expect(onError.mock.calls[0]?.[1]).toMatchObject({
       req,
       path: '/api/items/1',
       statusCode: 404,
     });
+    // and `instance` in the body is that same path, token excluded
+    expect(res.jsonBody).toMatchObject({ instance: '/api/items/1' });
   });
 
-  it('onError receives the mapped status from errorToResponse', async () => {
+  it('onError receives the mapped status from mapError', async () => {
     const onError = vi.fn();
     const { route, get } = createRoute({
       hooks: { onError },
-      errorToResponse: () => ({ status: 422, body: { error: 'e', code: 'C' } }),
+      mapError: () => new RouteError('e', 422, 'C'),
     });
     const handler = route({
       GET: get({
@@ -242,6 +269,7 @@ describe('error handling', () => {
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
     expect(res.statusCode).toBe(422);
+    expect(res.jsonBody).toMatchObject({ title: 'Unprocessable Content', code: 'C' });
     expect(onError.mock.calls[0]?.[1]).toMatchObject({ statusCode: 422 });
   });
 });

@@ -2,7 +2,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { createRoute, RouteError } from '../src/adapters/express';
+import { createRoute, PROBLEM_CONTENT_TYPE, RouteError } from '../src/adapters/express';
 
 type User = { id: string };
 
@@ -61,14 +61,14 @@ describe('routerplate/express (integration, real express + supertest)', () => {
 
     const list = await request(app).get('/items');
     expect(list.status).toBe(200);
-    expect(list.body).toEqual({ data: [{ id: '1', name: 'First' }], count: 1 });
+    expect(list.body).toEqual([{ id: '1', name: 'First' }]);
 
     const created = await request(app).post('/items').send({ name: 'Second' });
     expect(created.status).toBe(201);
-    expect(created.body).toEqual({ data: { id: '2', name: 'Second' } });
+    expect(created.body).toEqual({ id: '2', name: 'Second' });
 
     const one = await request(app).get('/items/2');
-    expect(one.body).toEqual({ data: { id: '2', name: 'Second' } });
+    expect(one.body).toEqual({ id: '2', name: 'Second' });
 
     const gone = await request(app).delete('/items/2');
     expect(gone.status).toBe(204);
@@ -76,7 +76,14 @@ describe('routerplate/express (integration, real express + supertest)', () => {
 
     const missing = await request(app).get('/items/99');
     expect(missing.status).toBe(404);
-    expect(missing.body).toMatchObject({ code: 'NOT_FOUND' });
+    expect(missing.headers['content-type']).toMatch(/^application\/problem\+json/);
+    expect(missing.body).toEqual({
+      title: 'Not Found',
+      status: 404,
+      detail: 'Item not found',
+      instance: '/items/99',
+      code: 'NOT_FOUND',
+    });
   });
 
   it('405 with an Allow header listing configured methods', async () => {
@@ -123,7 +130,11 @@ describe('routerplate/express (integration, real express + supertest)', () => {
     );
     const res = await request(app).get('/u/not-a-uuid');
     expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: 'Invalid path parameters', code: 'VALIDATION_ERROR' });
+    expect(res.body).toMatchObject({
+      detail: 'Invalid path parameters',
+      code: 'VALIDATION_ERROR',
+      errors: [{ pointer: '/id', detail: expect.any(String) }],
+    });
   });
 
   it('authentication via injected authenticate + extend', async () => {
@@ -139,7 +150,7 @@ describe('routerplate/express (integration, real express + supertest)', () => {
     expect(denied.status).toBe(401);
 
     const allowed = await request(app).get('/me').set('authorization', 'Bearer ok');
-    expect(allowed.body).toEqual({ data: { id: 'u1', db: 'scoped:u1' } });
+    expect(allowed.body).toEqual({ id: 'u1', db: 'scoped:u1' });
   });
 
   it('headersSent → next(error): express error middleware takes over', async () => {
@@ -213,7 +224,55 @@ describe('routerplate/express (integration, real express + supertest)', () => {
     );
     const res = await request(app).get('/boom');
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Internal server error', code: 'INTERNAL_ERROR' });
+    expect(res.body).toEqual({
+      title: 'Internal Server Error',
+      status: 500,
+      detail: 'Internal server error',
+      instance: '/boom',
+      code: 'INTERNAL_ERROR',
+    });
+  });
+
+  it('the docs/errors.md middleware turns body-parser rejections into problem+json', async () => {
+    const { route, post } = createRoute();
+    const app = express();
+    app.use(express.json({ limit: '100b' }));
+    app.all('/items', route({ POST: post({ body: z.object({}), handler: async () => ({}) }) }));
+    // The middleware from docs/errors.md → "Before routerplate runs" (param typed for lint).
+    app.use(
+      (
+        error: { status?: number; expose?: boolean; type?: string; message: string },
+        req: Request,
+        res: Response,
+        next: NextFunction,
+      ) => {
+        if (typeof error.status !== 'number' || !error.expose) return next(error);
+        const code = String(error.type ?? 'bad_request')
+          .toUpperCase()
+          .replace(/\./g, '_');
+        const problem = new RouteError(error.message, error.status, code).toProblem(req.path);
+        res.status(problem.status).type(PROBLEM_CONTENT_TYPE).json(problem);
+      },
+    );
+
+    const malformed = await request(app)
+      .post('/items')
+      .set('Content-Type', 'application/json')
+      .send('{"broken":');
+    expect(malformed.status).toBe(400);
+    expect(malformed.headers['content-type']).toMatch(/^application\/problem\+json/);
+    expect(malformed.body).toMatchObject({
+      title: 'Bad Request',
+      status: 400,
+      instance: '/items',
+      code: 'ENTITY_PARSE_FAILED',
+    });
+
+    const huge = await request(app)
+      .post('/items')
+      .send({ pad: 'x'.repeat(200) });
+    expect(huge.status).toBe(413);
+    expect(huge.body).toMatchObject({ title: 'Content Too Large', code: 'ENTITY_TOO_LARGE' });
   });
 
   it('rejects hand-written configs and schemaless mutations at route-construction time', () => {

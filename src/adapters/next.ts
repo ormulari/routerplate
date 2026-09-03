@@ -17,7 +17,13 @@ import type {
 } from '../core/types.js';
 
 export { authContext, type AuthContext } from '../core/auth-context.js';
-export { RouteError, type ErrorBody, type ErrorCode } from '../core/errors.js';
+export {
+  PROBLEM_CONTENT_TYPE,
+  RouteError,
+  type ErrorCode,
+  type Problem,
+  type ProblemError,
+} from '../core/errors.js';
 export type {
   BodyValidationFailure,
   ErrorHookContext,
@@ -150,7 +156,15 @@ const transport: Transport<NextApiRequest, NextApiResponse> = {
   query: (req) => req.query,
   setHeader: (res, name, value) => void res.setHeader(name, value),
   responseEnded: (res) => res.writableEnded,
-  sendJson: (res, status, payload) => void res.status(status).json(payload),
+  sendJson: (res, status, payload, contentType) => {
+    if (!contentType) {
+      res.status(status).json(payload);
+      return;
+    }
+    // Next's res.json() forces application/json, so serialize by hand.
+    res.setHeader('Content-Type', `${contentType}; charset=utf-8`);
+    res.status(status).send(JSON.stringify(payload));
+  },
   sendEmpty: (res, status) => void res.status(status).end(),
 };
 
@@ -227,8 +241,8 @@ type Authenticated<Deps extends { authenticate?: unknown }> = Deps & {
 
 /**
  * Build your app's `route()` function (plus typed method helpers) by
- * injecting its services. Handlers return bare payloads; route() owns
- * the `{ data }` envelope (arrays additionally get `count`).
+ * injecting its services. A handler's return value is the response
+ * body; route() owns status codes and errors.
  *
  * Without `authenticate`, `ctx.user` is typed `null`: no route can
  * pretend a user exists.

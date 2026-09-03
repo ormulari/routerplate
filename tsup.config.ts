@@ -15,8 +15,7 @@ export default defineConfig({
   clean: true,
   splitting: false,
   target: 'node18',
-  // Frameworks and validators are optional peers resolved at the consumer;
-  // only type imports exist for next/express, and validators load via
-  // dynamic import at runtime.
-  external: ['next', 'express', 'zod', 'valibot', 'arktype'],
+  // Frameworks are optional peers resolved at the consumer; only type
+  // imports exist for them. Validators are never imported at all.
+  external: ['next', 'express'],
 });

@@ -22,7 +22,7 @@ describe('body validation through the same post() helper', () => {
     const res = mockRes();
     await handler(nextReq({ method: 'POST', body: { name: 'a', n: '2' } }), asNextRes(res));
     expect(res.statusCode).toBe(201);
-    expect(res.jsonBody).toEqual({ data: { name: 'a', n: 2 } });
+    expect(res.jsonBody).toEqual({ name: 'a', n: 2 });
   });
 
   it('valibot: valid body is parsed and typed', async () => {
@@ -38,7 +38,7 @@ describe('body validation through the same post() helper', () => {
     const res = mockRes();
     await handler(nextReq({ method: 'POST', body: { name: 'b' } }), asNextRes(res));
     expect(res.statusCode).toBe(201);
-    expect(res.jsonBody).toEqual({ data: { name: 'b' } });
+    expect(res.jsonBody).toEqual({ name: 'b' });
   });
 
   it('arktype: valid body is parsed and typed', async () => {
@@ -54,47 +54,49 @@ describe('body validation through the same post() helper', () => {
     const res = mockRes();
     await handler(nextReq({ method: 'POST', body: { name: 'c' } }), asNextRes(res));
     expect(res.statusCode).toBe(201);
-    expect(res.jsonBody).toEqual({ data: { name: 'c' } });
+    expect(res.jsonBody).toEqual({ name: 'c' });
   });
 
-  it('zod: invalid body → 400 VALIDATION_ERROR with zod format() details', async () => {
+  it('an invalid body → 400 VALIDATION_ERROR with the same `errors` shape for every validator', async () => {
+    const schemas = [
+      z.object({ name: z.string() }),
+      v.object({ name: v.string() }),
+      type({ name: 'string' }),
+    ];
+    for (const body of schemas) {
+      const handler = route({ POST: post({ body, handler: async () => ({}) }) });
+      const res = mockRes();
+      await handler(nextReq({ method: 'POST', body: { name: 42 } }), asNextRes(res));
+      expect(res.statusCode).toBe(400);
+      expect(res.headers['content-type']).toContain('application/problem+json');
+      expect(res.jsonBody).toEqual({
+        title: 'Bad Request',
+        status: 400,
+        detail: 'Validation failed',
+        instance: '/api/test',
+        code: 'VALIDATION_ERROR',
+        errors: [{ pointer: '/name', detail: expect.any(String) }],
+      });
+    }
+  });
+
+  it('pointers follow nesting and array indexes', async () => {
     const handler = route({
       POST: post({
-        body: z.object({ name: z.string() }),
+        body: z.object({ a: z.object({ b: z.string() }), tags: z.array(z.string()) }),
         handler: async () => ({}),
       }),
     });
     const res = mockRes();
-    await handler(nextReq({ method: 'POST', body: { name: 42 } }), asNextRes(res));
-    expect(res.statusCode).toBe(400);
-    expect(res.jsonBody).toMatchObject({ error: 'Validation failed', code: 'VALIDATION_ERROR' });
-    const details = (res.jsonBody as { details: { name: { _errors: string[] } } }).details;
-    expect(details.name._errors.length).toBeGreaterThan(0);
+    await handler(
+      nextReq({ method: 'POST', body: { a: { b: 1 }, tags: ['ok', 2] } }),
+      asNextRes(res),
+    );
+    const { errors } = res.jsonBody as { errors: { pointer: string }[] };
+    expect(errors.map((e) => e.pointer)).toEqual(['/a/b', '/tags/1']);
   });
 
-  it('valibot: invalid body → 400 with flatten() details', async () => {
-    const handler = route({
-      POST: post({ body: v.object({ name: v.string() }), handler: async () => ({}) }),
-    });
-    const res = mockRes();
-    await handler(nextReq({ method: 'POST', body: { name: 42 } }), asNextRes(res));
-    expect(res.statusCode).toBe(400);
-    const details = (res.jsonBody as { details: { nested?: Record<string, string[]> } }).details;
-    expect(details.nested?.name?.length).toBeGreaterThan(0);
-  });
-
-  it('arktype: invalid body → 400 with summary details', async () => {
-    const handler = route({
-      POST: post({ body: type({ name: 'string' }), handler: async () => ({}) }),
-    });
-    const res = mockRes();
-    await handler(nextReq({ method: 'POST', body: { name: 42 } }), asNextRes(res));
-    expect(res.statusCode).toBe(400);
-    const details = (res.jsonBody as { details: { summary: string } }).details;
-    expect(typeof details.summary).toBe('string');
-  });
-
-  it('fires onBodyValidationFailure with issues + details (but not for query failures)', async () => {
+  it('fires onBodyValidationFailure with issues + errors (but not for query failures)', async () => {
     const onBodyValidationFailure = vi.fn();
     const {
       route: hookedRoute,
@@ -113,11 +115,11 @@ describe('body validation through the same post() helper', () => {
     await handler(req, asNextRes(postRes));
     expect(onBodyValidationFailure).toHaveBeenCalledOnce();
     const [failure, context] = onBodyValidationFailure.mock.calls[0] as [
-      { issues: unknown[]; details: unknown; vendor?: string },
+      { issues: unknown[]; errors: unknown },
       { req: unknown; method: string; path: string; statusCode: number },
     ];
-    expect(failure.vendor).toBe('zod');
     expect(failure.issues.length).toBeGreaterThan(0);
+    expect(failure.errors).toEqual((postRes.jsonBody as { errors: unknown }).errors);
     expect(context).toMatchObject({ req, method: 'POST', path: '/api/test', statusCode: 400 });
 
     const getRes = mockRes();
@@ -140,10 +142,10 @@ describe('query validation', () => {
     });
     const res = mockRes();
     await handler(nextReq({ method: 'GET', query: { page: '3' } }), asNextRes(res));
-    expect(res.jsonBody).toEqual({ data: { page: 3 } });
+    expect(res.jsonBody).toEqual({ page: 3 });
   });
 
-  it('invalid query → 400 with "Invalid query parameters"', async () => {
+  it('invalid query → 400 "Invalid query parameters"', async () => {
     const handler = route({
       GET: get({ query: z.object({ page: z.coerce.number() }), handler: async () => ({}) }),
     });
@@ -151,8 +153,9 @@ describe('query validation', () => {
     await handler(nextReq({ method: 'GET', query: { page: 'x' } }), asNextRes(res));
     expect(res.statusCode).toBe(400);
     expect(res.jsonBody).toMatchObject({
-      error: 'Invalid query parameters',
+      detail: 'Invalid query parameters',
       code: 'VALIDATION_ERROR',
+      errors: [{ pointer: '/page' }],
     });
   });
 });
@@ -190,18 +193,18 @@ describe('async and custom Standard Schemas', () => {
     });
     const res = mockRes();
     await handler(nextReq({ method: 'POST', body: { ok: true } }), asNextRes(res));
-    expect(res.jsonBody).toEqual({ data: { ok: true } });
+    expect(res.jsonBody).toEqual({ ok: true });
   });
 
-  it('unknown vendors fall back to normalized [{ path, message }] details', async () => {
+  it('any vendor gets the same `errors`', async () => {
     const handler = route({
       POST: post({ body: asyncSchema, handler: async ({ body }) => body }),
     });
     const res = mockRes();
     await handler(nextReq({ method: 'POST', body: { ok: false } }), asNextRes(res));
     expect(res.statusCode).toBe(400);
-    expect((res.jsonBody as { details: unknown }).details).toEqual([
-      { path: 'ok', message: 'must be ok' },
+    expect((res.jsonBody as { errors: unknown }).errors).toEqual([
+      { pointer: '/ok', detail: 'must be ok' },
     ]);
   });
 });

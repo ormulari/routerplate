@@ -12,7 +12,12 @@ describe('authentication', () => {
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
     expect(res.statusCode).toBe(401);
-    expect(res.jsonBody).toMatchObject({ code: 'UNAUTHORIZED', error: 'Authentication required' });
+    expect(res.jsonBody).toMatchObject({
+      title: 'Unauthorized',
+      status: 401,
+      detail: 'Authentication required',
+      code: 'UNAUTHORIZED',
+    });
   });
 
   it('passes the user into ctx when authenticated', async () => {
@@ -28,7 +33,7 @@ describe('authentication', () => {
     });
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
-    expect(res.jsonBody).toEqual({ data: { who: 'Ada' } });
+    expect(res.jsonBody).toEqual({ who: 'Ada' });
   });
 
   it('requireAuth: false is per method: anonymous GET, authed POST on one route', async () => {
@@ -55,7 +60,7 @@ describe('authentication', () => {
     const anon = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(anon));
     expect(anon.statusCode).toBe(200);
-    expect(anon.jsonBody).toEqual({ data: { anonymous: true } });
+    expect(anon.jsonBody).toEqual({ anonymous: true });
 
     const denied = mockRes();
     await handler(nextReq({ method: 'POST', body: {} }), asNextRes(denied));
@@ -75,7 +80,7 @@ describe('authentication', () => {
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
     expect(res.statusCode).toBe(200);
-    expect(res.jsonBody).toEqual({ data: { user: null } });
+    expect(res.jsonBody).toEqual({ user: null });
   });
 });
 
@@ -96,7 +101,13 @@ describe('authorize', () => {
     const denied = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(denied));
     expect(denied.statusCode).toBe(403);
-    expect(denied.jsonBody).toEqual({ error: 'Forbidden', code: 'FORBIDDEN' });
+    expect(denied.jsonBody).toEqual({
+      title: 'Forbidden',
+      status: 403,
+      detail: 'Forbidden',
+      instance: '/api/test',
+      code: 'FORBIDDEN',
+    });
     expect(handlerSpy).not.toHaveBeenCalled();
 
     const allowed = mockRes();
@@ -160,7 +171,7 @@ describe('authContext', () => {
     });
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
-    expect(res.jsonBody).toEqual({ data: { who: 'Ada', scope: 'rls:u1' } });
+    expect(res.jsonBody).toEqual({ who: 'Ada', scope: 'rls:u1' });
   });
 
   it('authContext(null, extras): 401 by default, extras still reach requireAuth: false methods', async () => {
@@ -181,7 +192,7 @@ describe('authContext', () => {
         handler: async ({ db, user }) => ({ scope: db.scope, anon: user === null }),
       }),
     })(nextReq({ method: 'GET' }), asNextRes(resAnon));
-    expect(resAnon.jsonBody).toEqual({ data: { scope: 'anon', anon: true } });
+    expect(resAnon.jsonBody).toEqual({ scope: 'anon', anon: true });
   });
 
   it('extend runs after authContext, receives the user, and wins on key conflicts', async () => {
@@ -197,7 +208,7 @@ describe('authContext', () => {
       nextReq({ method: 'GET' }),
       asNextRes(res),
     );
-    expect(res.jsonBody).toEqual({ data: { scope: 'extend:u1' } });
+    expect(res.jsonBody).toEqual({ scope: 'extend:u1' });
     expect(extend.mock.calls[0]?.[0]).toMatchObject({ user: { id: 'u1' } });
   });
 
@@ -229,7 +240,7 @@ describe('authContext', () => {
       nextReq({ method: 'GET' }),
       asNextRes(res),
     );
-    expect(res.jsonBody).toEqual({ data: { scope: 'foreign' } });
+    expect(res.jsonBody).toEqual({ scope: 'foreign' });
   });
 
   it('a plain user object with a `user` key is NOT mistaken for an envelope (brand check)', async () => {
@@ -242,7 +253,7 @@ describe('authContext', () => {
       nextReq({ method: 'GET' }),
       asNextRes(res),
     );
-    expect(res.jsonBody).toEqual({ data: { id: 'u1' } });
+    expect(res.jsonBody).toEqual({ id: 'u1' });
   });
 });
 
@@ -258,7 +269,7 @@ describe('extend', () => {
     const handler = route({ GET: get({ handler: async ({ db }) => ({ scope: db.scope }) }) });
     const res = mockRes();
     await handler(nextReq({ method: 'GET' }), asNextRes(res));
-    expect(res.jsonBody).toEqual({ data: { scope: 'u1' } });
+    expect(res.jsonBody).toEqual({ scope: 'u1' });
     expect(extend).toHaveBeenCalledOnce();
     expect(extend.mock.calls[0]?.[0]).toMatchObject({ user: { id: 'u1' } });
   });

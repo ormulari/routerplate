@@ -24,7 +24,7 @@ export const noManualResponse: RuleModule = {
     ],
     messages: {
       manualResponse:
-        'Do not call `res.{{member}}()` inside a route() handler; return a bare payload (route() wraps it) or throw a RouteError.',
+        'Do not call `res.{{member}}()` inside a route() handler; return the payload or throw a RouteError.',
     },
   },
   create(context) {

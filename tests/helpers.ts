@@ -4,6 +4,7 @@ import type { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 /** Lightweight mock response capturing what routerplate writes. */
 export interface MockRes {
   statusCode: number | undefined;
+  /** Parsed body, whether it came through json() or send(). */
   jsonBody: unknown;
   ended: boolean;
   headers: Record<string, string>;
@@ -11,6 +12,7 @@ export interface MockRes {
   writableEnded: boolean;
   status(code: number): MockRes;
   json(payload: unknown): MockRes;
+  send(payload: string): MockRes;
   end(): MockRes;
   setHeader(name: string, value: string): void;
 }
@@ -29,10 +31,12 @@ export function mockRes(): MockRes {
     },
     json(payload) {
       res.jsonBody = payload;
-      res.headersSent = true;
-      res.writableEnded = true;
-      res.ended = true;
-      return res;
+      if (!res.headers['content-type']) res.headers['content-type'] = 'application/json';
+      return res.end();
+    },
+    send(payload) {
+      res.jsonBody = JSON.parse(payload);
+      return res.end();
     },
     end() {
       res.headersSent = true;

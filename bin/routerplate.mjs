@@ -360,17 +360,12 @@ function doctor(values, cwd) {
   if (self) pass(`routerplate ${self.version} installed`);
   else fail('routerplate is not installed', 'npm install routerplate');
 
-  // 2. exactly one supported validator resolvable
+  // 2. a supported validator resolvable
   const installedValidators = VALIDATOR_NAMES.filter((name) => findInstalled(cwd, name));
-  if (installedValidators.length === 1) {
-    pass(`one validator installed (${installedValidators[0]})`);
-  } else if (installedValidators.length === 0) {
-    fail('no supported validator installed', 'npm install zod (or valibot, or arktype)');
+  if (installedValidators.length > 0) {
+    pass(`validator installed (${installedValidators.join(', ')})`);
   } else {
-    fail(
-      `multiple validators installed (${installedValidators.join(', ')})`,
-      'error `details` formatting differs per validator; keep exactly one so responses stay consistent',
-    );
+    fail('no supported validator installed', 'npm install zod (or valibot, or arktype)');
   }
 
   // 3. adapter file exists

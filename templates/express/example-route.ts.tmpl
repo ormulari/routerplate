@@ -14,7 +14,7 @@ itemsRouter.all(
   route({
     GET: get({
       response: ItemListSchema,
-      handler: async () => items, // → 200 { data, count }
+      handler: async () => items, // → 200
     }),
     POST: post({
       body: CreateItemSchema, // ctx.body is typed from this
@@ -22,7 +22,7 @@ itemsRouter.all(
       handler: async ({ body }) => {
         const item: Item = { id: String(items.length + 1), name: body.name };
         items.push(item);
-        return item; // → 201 { data }
+        return item; // → 201
       },
     }),
   }),

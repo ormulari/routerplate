@@ -8,7 +8,7 @@ const items: Item[] = [{ id: '1', name: 'First item' }];
 export default route({
   GET: get({
     response: ItemListSchema,
-    handler: async () => items, // → 200 { data, count }
+    handler: async () => items, // → 200
   }),
   POST: post({
     body: CreateItemSchema, // ctx.body is typed from this
@@ -16,7 +16,7 @@ export default route({
     handler: async ({ body }) => {
       const item: Item = { id: String(items.length + 1), name: body.name };
       items.push(item);
-      return item; // → 201 { data }
+      return item; // → 201
     },
   }),
 });

@@ -133,22 +133,26 @@ describe('emitted example routes run (the vitest alias maps `routerplate/*` to s
 
     const list = await request(app).get('/items');
     expect(list.status).toBe(200);
-    expect(list.body).toEqual({ data: [{ id: '1', name: 'First item' }], count: 1 });
+    expect(list.body).toEqual([{ id: '1', name: 'First item' }]);
 
     const created = await request(app).post('/items').send({ name: 'Second' });
     expect(created.status).toBe(201);
-    expect(created.body).toEqual({ data: { id: '2', name: 'Second' } });
+    expect(created.body).toEqual({ id: '2', name: 'Second' });
 
     const invalid = await request(app).post('/items').send({ name: '' });
     expect(invalid.status).toBe(400);
     expect(invalid.body).toMatchObject({ code: 'VALIDATION_ERROR' });
 
     const one = await request(app).get('/items/2');
-    expect(one.body).toEqual({ data: { id: '2', name: 'Second' } });
+    expect(one.body).toEqual({ id: '2', name: 'Second' });
 
     const missing = await request(app).get('/items/99');
     expect(missing.status).toBe(404);
-    expect(missing.body).toEqual({ error: 'Item not found', code: 'NOT_FOUND' });
+    expect(missing.body).toMatchObject({
+      status: 404,
+      detail: 'Item not found',
+      code: 'NOT_FOUND',
+    });
 
     expect((await request(app).delete('/items/2')).status).toBe(204);
     expect((await request(app).delete('/items/2')).status).toBe(404);
@@ -164,11 +168,11 @@ describe('emitted example routes run (the vitest alias maps `routerplate/*` to s
 
     const list = await request(server).get('/api/example');
     expect(list.status).toBe(200);
-    expect(list.body).toEqual({ data: [{ id: '1', name: 'First item' }], count: 1 });
+    expect(list.body).toEqual([{ id: '1', name: 'First item' }]);
 
     const created = await request(server).post('/api/example').send({ name: 'Second' });
     expect(created.status).toBe(201);
-    expect(created.body).toEqual({ data: { id: '2', name: 'Second' } });
+    expect(created.body).toEqual({ id: '2', name: 'Second' });
 
     const invalid = await request(server).post('/api/example').send({ name: '' });
     expect(invalid.status).toBe(400);

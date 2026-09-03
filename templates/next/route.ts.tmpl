@@ -1,6 +1,6 @@
-import { createRoute } from 'routerplate/next';
+import { createRoute, RouteError } from 'routerplate/next';
 
-export { RouteError } from 'routerplate/next';
+export { RouteError };
 
 // Your app's route adapter. This is the only file that imports services
 // (auth, db, error tracking). Route files import `route` and the helpers
@@ -20,9 +20,9 @@ export const { route, endpoint, get, post, patch, put, del } = createRoute<User,
   // Per-request context, merged into ctx.
   // extend: async ({ req, user }) => ({ db: dbFor(user) }),
 
-  // Map your own error classes. Return undefined to fall through.
-  // errorToResponse: (error) =>
-  //   error instanceof AppError ? { status: 409, body: { error: error.message, code: error.code } } : undefined,
+  // Map your own error classes to a RouteError. Return undefined to fall through.
+  // mapError: (error) =>
+  //   error instanceof AppError ? new RouteError(error.message, 409, error.code) : undefined,
 
   // hooks: {
   //   onBodyValidationFailure: (failure, ctx) => report(failure, ctx),

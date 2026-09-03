@@ -13,7 +13,13 @@
  */
 
 export { authContext, isAuthContext, type AuthContext } from './core/auth-context.js';
-export { RouteError, type ErrorBody, type ErrorCode } from './core/errors.js';
+export {
+  PROBLEM_CONTENT_TYPE,
+  RouteError,
+  type ErrorCode,
+  type Problem,
+  type ProblemError,
+} from './core/errors.js';
 export {
   brandMethodConfig,
   isMethodConfig,
@@ -44,9 +50,7 @@ export {
 } from './core/engine.js';
 export {
   isStandardSchema,
-  normalizeIssues,
+  toProblemErrors,
   validateSchema,
-  type NormalizedIssue,
   type ValidationResult,
 } from './validators/standard-schema.js';
-export { formatIssues, loadFormatter, type IssueFormatter } from './validators/registry.js';
