@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+tests/.tmp/
+*.tgz
+.DS_Store
+CLAUDE.md
+.claude/

@@ -1,0 +1,32 @@
+import { createRoute } from 'routerplate/next';
+
+export { RouteError } from 'routerplate/next';
+
+// Your app's route adapter. This is the only file that imports services
+// (auth, db, error tracking). Route files import `route` and the helpers
+// from here and nothing else.
+
+/** Your authenticated-user type. */
+export type User = { id: string };
+
+/** Anything you add to every handler's ctx, e.g. `{ db: Db }`. */
+export type Extras = Record<never, never>;
+
+export const { route, endpoint, get, post, patch, put, del } = createRoute<User, Extras>({
+  // Who is calling? Return null for anonymous. Until you add this,
+  // `ctx.user` is typed `null` and no route asks for auth.
+  // authenticate: async (req) => getUser(req),
+
+  // Per-request context, merged into ctx.
+  // extend: async ({ req, user }) => ({ db: dbFor(user) }),
+
+  // Map your own error classes. Return undefined to fall through.
+  // errorToResponse: (error) =>
+  //   error instanceof AppError ? { status: 409, body: { error: error.message, code: error.code } } : undefined,
+
+  // hooks: {
+  //   onBodyValidationFailure: (failure, ctx) => report(failure, ctx),
+  //   onError: (error, ctx) => { if (ctx.statusCode >= 500) report(error, ctx); },
+  //   log: (message, payload) => logger.error(message, payload),
+  // },
+});

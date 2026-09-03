@@ -1,0 +1,53 @@
+import { Router } from 'express';
+{{VALIDATOR_IMPORT}}
+import { del, get, post, route, RouteError } from '{{ADAPTER_IMPORT}}';
+
+{{SCHEMA_DEFS}}
+
+const items: Item[] = [{ id: '1', name: 'First item' }];
+
+// Mount with `app.use('/items', itemsRouter)`. Bodies need `app.use(express.json())` upstream.
+export const itemsRouter = Router();
+
+itemsRouter.all(
+  '/',
+  route({
+    GET: get({
+      response: ItemListSchema,
+      handler: async () => items, // → 200 { data, count }
+    }),
+    POST: post({
+      body: CreateItemSchema, // ctx.body is typed from this
+      response: ItemSchema,
+      handler: async ({ body }) => {
+        const item: Item = { id: String(items.length + 1), name: body.name };
+        items.push(item);
+        return item; // → 201 { data }
+      },
+    }),
+  }),
+);
+
+itemsRouter.all(
+  '/:id',
+  route({
+    GET: get({
+      params: IdParamsSchema,
+      response: ItemSchema,
+      handler: async ({ params }) => {
+        const item = items.find((candidate) => candidate.id === params.id);
+        if (!item) throw RouteError.notFound('Item not found');
+        return item;
+      },
+    }),
+    DELETE: del({
+      params: IdParamsSchema,
+      handler: async ({ params }) => {
+        const index = items.findIndex((candidate) => candidate.id === params.id);
+        if (index === -1) throw RouteError.notFound('Item not found');
+        items.splice(index, 1);
+        return null; // → 204
+      },
+    }),
+  }),
+);

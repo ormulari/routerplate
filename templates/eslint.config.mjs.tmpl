@@ -1,0 +1,10 @@
+import routerplate from 'routerplate/eslint-plugin';
+
+// Scoped to your API routes. Make sure a TypeScript parser applies to
+// this glob too (typescript-eslint's recommended config does).
+export default [
+  {
+    files: ['{{API_GLOB}}'],
+    ...routerplate.configs.recommended,
+  },
+];

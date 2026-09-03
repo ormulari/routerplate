@@ -1,0 +1,302 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`routerplate init > emits valibot and arktype example schemas > express-example-arktype 1`] = `
+"import { Router } from 'express';
+import { type } from 'arktype';
+import { del, get, post, route, RouteError } from '../../lib/api/route';
+
+const ItemSchema = type({ id: 'string', name: 'string' });
+const CreateItemSchema = type({ name: 'string > 0' });
+const ItemListSchema = ItemSchema.array();
+type Item = typeof ItemSchema.infer;
+const IdParamsSchema = type({ id: 'string' });
+
+const items: Item[] = [{ id: '1', name: 'First item' }];
+
+// Mount with \`app.use('/items', itemsRouter)\`. Bodies need \`app.use(express.json())\` upstream.
+export const itemsRouter = Router();
+
+itemsRouter.all(
+  '/',
+  route({
+    GET: get({
+      response: ItemListSchema,
+      handler: async () => items, // → 200 { data, count }
+    }),
+    POST: post({
+      body: CreateItemSchema, // ctx.body is typed from this
+      response: ItemSchema,
+      handler: async ({ body }) => {
+        const item: Item = { id: String(items.length + 1), name: body.name };
+        items.push(item);
+        return item; // → 201 { data }
+      },
+    }),
+  }),
+);
+
+itemsRouter.all(
+  '/:id',
+  route({
+    GET: get({
+      params: IdParamsSchema,
+      response: ItemSchema,
+      handler: async ({ params }) => {
+        const item = items.find((candidate) => candidate.id === params.id);
+        if (!item) throw RouteError.notFound('Item not found');
+        return item;
+      },
+    }),
+    DELETE: del({
+      params: IdParamsSchema,
+      handler: async ({ params }) => {
+        const index = items.findIndex((candidate) => candidate.id === params.id);
+        if (index === -1) throw RouteError.notFound('Item not found');
+        items.splice(index, 1);
+        return null; // → 204
+      },
+    }),
+  }),
+);
+"
+`;
+
+exports[`routerplate init > emits valibot and arktype example schemas > express-example-valibot 1`] = `
+"import { Router } from 'express';
+import * as v from 'valibot';
+import { del, get, post, route, RouteError } from '../../lib/api/route';
+
+const ItemSchema = v.object({ id: v.string(), name: v.string() });
+const CreateItemSchema = v.object({ name: v.pipe(v.string(), v.minLength(1)) });
+const ItemListSchema = v.array(ItemSchema);
+type Item = v.InferOutput<typeof ItemSchema>;
+const IdParamsSchema = v.object({ id: v.string() });
+
+const items: Item[] = [{ id: '1', name: 'First item' }];
+
+// Mount with \`app.use('/items', itemsRouter)\`. Bodies need \`app.use(express.json())\` upstream.
+export const itemsRouter = Router();
+
+itemsRouter.all(
+  '/',
+  route({
+    GET: get({
+      response: ItemListSchema,
+      handler: async () => items, // → 200 { data, count }
+    }),
+    POST: post({
+      body: CreateItemSchema, // ctx.body is typed from this
+      response: ItemSchema,
+      handler: async ({ body }) => {
+        const item: Item = { id: String(items.length + 1), name: body.name };
+        items.push(item);
+        return item; // → 201 { data }
+      },
+    }),
+  }),
+);
+
+itemsRouter.all(
+  '/:id',
+  route({
+    GET: get({
+      params: IdParamsSchema,
+      response: ItemSchema,
+      handler: async ({ params }) => {
+        const item = items.find((candidate) => candidate.id === params.id);
+        if (!item) throw RouteError.notFound('Item not found');
+        return item;
+      },
+    }),
+    DELETE: del({
+      params: IdParamsSchema,
+      handler: async ({ params }) => {
+        const index = items.findIndex((candidate) => candidate.id === params.id);
+        if (index === -1) throw RouteError.notFound('Item not found');
+        items.splice(index, 1);
+        return null; // → 204
+      },
+    }),
+  }),
+);
+"
+`;
+
+exports[`routerplate init > scaffolds a Next.js + zod project (snapshot) > next-adapter 1`] = `
+"import { createRoute } from 'routerplate/next';
+
+export { RouteError } from 'routerplate/next';
+
+// Your app's route adapter. This is the only file that imports services
+// (auth, db, error tracking). Route files import \`route\` and the helpers
+// from here and nothing else.
+
+/** Your authenticated-user type. */
+export type User = { id: string };
+
+/** Anything you add to every handler's ctx, e.g. \`{ db: Db }\`. */
+export type Extras = Record<never, never>;
+
+export const { route, endpoint, get, post, patch, put, del } = createRoute<User, Extras>({
+  // Who is calling? Return null for anonymous. Until you add this,
+  // \`ctx.user\` is typed \`null\` and no route asks for auth.
+  // authenticate: async (req) => getUser(req),
+
+  // Per-request context, merged into ctx.
+  // extend: async ({ req, user }) => ({ db: dbFor(user) }),
+
+  // Map your own error classes. Return undefined to fall through.
+  // errorToResponse: (error) =>
+  //   error instanceof AppError ? { status: 409, body: { error: error.message, code: error.code } } : undefined,
+
+  // hooks: {
+  //   onBodyValidationFailure: (failure, ctx) => report(failure, ctx),
+  //   onError: (error, ctx) => { if (ctx.statusCode >= 500) report(error, ctx); },
+  //   log: (message, payload) => logger.error(message, payload),
+  // },
+});
+"
+`;
+
+exports[`routerplate init > scaffolds a Next.js + zod project (snapshot) > next-eslint-config 1`] = `
+"import routerplate from 'routerplate/eslint-plugin';
+
+// Scoped to your API routes. Make sure a TypeScript parser applies to
+// this glob too (typescript-eslint's recommended config does).
+export default [
+  {
+    files: ['pages/api/**/*.ts'],
+    ...routerplate.configs.recommended,
+  },
+];
+"
+`;
+
+exports[`routerplate init > scaffolds a Next.js + zod project (snapshot) > next-example 1`] = `
+"import { z } from 'zod';
+import { get, post, route } from '../../lib/api/route';
+
+const ItemSchema = z.object({ id: z.string(), name: z.string() });
+const CreateItemSchema = z.object({ name: z.string().min(1) });
+const ItemListSchema = z.array(ItemSchema);
+type Item = z.infer<typeof ItemSchema>;
+
+const items: Item[] = [{ id: '1', name: 'First item' }];
+
+export default route({
+  GET: get({
+    response: ItemListSchema,
+    handler: async () => items, // → 200 { data, count }
+  }),
+  POST: post({
+    body: CreateItemSchema, // ctx.body is typed from this
+    response: ItemSchema,
+    handler: async ({ body }) => {
+      const item: Item = { id: String(items.length + 1), name: body.name };
+      items.push(item);
+      return item; // → 201 { data }
+    },
+  }),
+});
+"
+`;
+
+exports[`routerplate init > scaffolds an Express + zod project (snapshot) > express-adapter 1`] = `
+"import { createRoute } from 'routerplate/express';
+
+export { RouteError } from 'routerplate/express';
+
+// Your app's route adapter. This is the only file that imports services
+// (auth, db, error tracking). Route files import \`route\` and the helpers
+// from here and nothing else.
+
+/** Your authenticated-user type. */
+export type User = { id: string };
+
+/** Anything you add to every handler's ctx, e.g. \`{ db: Db }\`. */
+export type Extras = Record<never, never>;
+
+export const { route, endpoint, get, post, patch, put, del } = createRoute<User, Extras>({
+  // Who is calling? Return null for anonymous. Until you add this,
+  // \`ctx.user\` is typed \`null\` and no route asks for auth.
+  // authenticate: async (req) => getUser(req),
+
+  // Per-request context, merged into ctx.
+  // extend: async ({ req, user }) => ({ db: dbFor(user) }),
+
+  // Map your own error classes. Return undefined to fall through.
+  // errorToResponse: (error) =>
+  //   error instanceof AppError ? { status: 409, body: { error: error.message, code: error.code } } : undefined,
+
+  // Let your Express error middleware own 500s.
+  // forwardUnhandledToNext: true,
+
+  // hooks: {
+  //   onBodyValidationFailure: (failure, ctx) => report(failure, ctx),
+  //   onError: (error, ctx) => { if (ctx.statusCode >= 500) report(error, ctx); },
+  //   log: (message, payload) => logger.error(message, payload),
+  // },
+});
+"
+`;
+
+exports[`routerplate init > scaffolds an Express + zod project (snapshot) > express-example 1`] = `
+"import { Router } from 'express';
+import { z } from 'zod';
+import { del, get, post, route, RouteError } from '../../lib/api/route';
+
+const ItemSchema = z.object({ id: z.string(), name: z.string() });
+const CreateItemSchema = z.object({ name: z.string().min(1) });
+const ItemListSchema = z.array(ItemSchema);
+type Item = z.infer<typeof ItemSchema>;
+const IdParamsSchema = z.object({ id: z.string() });
+
+const items: Item[] = [{ id: '1', name: 'First item' }];
+
+// Mount with \`app.use('/items', itemsRouter)\`. Bodies need \`app.use(express.json())\` upstream.
+export const itemsRouter = Router();
+
+itemsRouter.all(
+  '/',
+  route({
+    GET: get({
+      response: ItemListSchema,
+      handler: async () => items, // → 200 { data, count }
+    }),
+    POST: post({
+      body: CreateItemSchema, // ctx.body is typed from this
+      response: ItemSchema,
+      handler: async ({ body }) => {
+        const item: Item = { id: String(items.length + 1), name: body.name };
+        items.push(item);
+        return item; // → 201 { data }
+      },
+    }),
+  }),
+);
+
+itemsRouter.all(
+  '/:id',
+  route({
+    GET: get({
+      params: IdParamsSchema,
+      response: ItemSchema,
+      handler: async ({ params }) => {
+        const item = items.find((candidate) => candidate.id === params.id);
+        if (!item) throw RouteError.notFound('Item not found');
+        return item;
+      },
+    }),
+    DELETE: del({
+      params: IdParamsSchema,
+      handler: async ({ params }) => {
+        const index = items.findIndex((candidate) => candidate.id === params.id);
+        if (index === -1) throw RouteError.notFound('Item not found');
+        items.splice(index, 1);
+        return null; // → 204
+      },
+    }),
+  }),
+);
+"
+`;

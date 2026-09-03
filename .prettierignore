@@ -1,0 +1,7 @@
+dist
+coverage
+tests/.tmp
+tests/__snapshots__
+templates
+CHANGELOG.md
+package-lock.json

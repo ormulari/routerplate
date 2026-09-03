@@ -1,0 +1,150 @@
+{
+  "name": "routerplate",
+  "version": "1.0.0",
+  "description": "The opinionated, verifiable layer for REST API boilerplate: schema-validated route handlers that help developers and AI agents build safe endpoints on the framework you already have.",
+  "license": "MIT",
+  "author": "Oliver Mulari (https://github.com/ormulari)",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.17"
+  },
+  "bin": {
+    "routerplate": "bin/routerplate.mjs"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./next": {
+      "import": {
+        "types": "./dist/next.d.ts",
+        "default": "./dist/next.js"
+      },
+      "require": {
+        "types": "./dist/next.d.cts",
+        "default": "./dist/next.cjs"
+      }
+    },
+    "./express": {
+      "import": {
+        "types": "./dist/express.d.ts",
+        "default": "./dist/express.js"
+      },
+      "require": {
+        "types": "./dist/express.d.cts",
+        "default": "./dist/express.cjs"
+      }
+    },
+    "./eslint-plugin": {
+      "import": {
+        "types": "./dist/eslint-plugin.d.ts",
+        "default": "./dist/eslint-plugin.js"
+      },
+      "require": {
+        "types": "./dist/eslint-plugin.d.cts",
+        "default": "./dist/eslint-plugin.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "npm run build && changeset publish"
+  },
+  "keywords": [
+    "route",
+    "handler",
+    "boilerplate",
+    "validation",
+    "standard-schema",
+    "zod",
+    "valibot",
+    "arktype",
+    "express",
+    "next",
+    "api",
+    "typescript",
+    "eslint"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ormulari/routerplate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ormulari/routerplate/issues"
+  },
+  "homepage": "https://github.com/ormulari/routerplate#readme",
+  "peerDependencies": {
+    "arktype": ">=2.0.0",
+    "express": ">=4.18.0",
+    "next": ">=13.0.0",
+    "valibot": ">=1.0.0",
+    "zod": ">=3.24.0"
+  },
+  "peerDependenciesMeta": {
+    "arktype": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    },
+    "valibot": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.7",
+    "@eslint/js": "^9.9.0",
+    "@standard-schema/spec": "^1.0.0",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "@types/supertest": "^6.0.2",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "arktype": "^2.1.0",
+    "eslint": "^9.9.0",
+    "express": "^4.19.2",
+    "next": "^14.2.5",
+    "prettier": "^3.3.3",
+    "supertest": "^7.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.0.0",
+    "valibot": "^1.1.0",
+    "vitest": "^3.0.0",
+    "zod": "^3.25.0"
+  }
+}
