@@ -105,11 +105,28 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
   transport: Transport<Req, Res>,
   deps: EngineDeps<Req, Res, User, Extras>,
 ): RouteRuntime<Req, Res> {
-  const log =
-    deps.hooks?.log ??
-    ((message: string, payload?: unknown) =>
-      payload === undefined ? console.error(message) : console.error(message, payload));
   const validateResponses = deps.validateResponses ?? true;
+
+  // Nothing in the error path may throw, or the request would hang with
+  // no response. The log hook falls back to console; other hooks are
+  // reported through the log and otherwise ignored.
+  const log = (message: string, payload?: unknown): void => {
+    try {
+      if (deps.hooks?.log) deps.hooks.log(message, payload);
+      else if (payload === undefined) console.error(message);
+      else console.error(message, payload);
+    } catch (logError) {
+      console.error(message, payload, logError);
+    }
+  };
+  const guarded = <T>(hook: string, run: () => T): T | undefined => {
+    try {
+      return run();
+    } catch (hookError) {
+      log(`routerplate: ${hook} threw`, hookError);
+      return undefined;
+    }
+  };
 
   return function buildHandler(config: ErasedRouteConfig) {
     // Fail at boot, not on the first request.
@@ -153,6 +170,8 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
 
         // 2. Authentication. An authContext() return carries auth-derived
         //    ctx extras (e.g. an RLS-scoped Supabase client) with the user.
+        //    `null` means anonymous → 401. A throw means the check itself
+        //    broke → 500, like any other unexpected error.
         let authExtras: Partial<Extras> | undefined;
         if (deps.authenticate) {
           const authResult = await deps.authenticate(req, res);
@@ -176,9 +195,11 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
           const result = await validateSchema(methodConfig.body, body);
           if (!result.success) {
             const errors = toProblemErrors(result.issues);
-            deps.hooks?.onBodyValidationFailure?.(
-              { issues: result.issues, errors },
-              { req, method, path: stripQuery(transport.path(req)), statusCode: 400, user },
+            guarded('onBodyValidationFailure', () =>
+              deps.hooks?.onBodyValidationFailure?.(
+                { issues: result.issues, errors },
+                { req, method, path: stripQuery(transport.path(req)), statusCode: 400, user },
+              ),
             );
             throw new RouteError('Validation failed', 400, 'VALIDATION_ERROR', { errors });
           }
@@ -259,30 +280,39 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
         }
 
         // App mapping first, then RouteError as thrown. Anything else is a bug.
-        const known = deps.mapError?.(error) ?? (error instanceof RouteError ? error : undefined);
-        if (known) {
-          deps.hooks?.onError?.(error, { req, method, path, statusCode: known.status, user });
-          if (known.status >= 500) {
-            log('API Error:', {
-              message: known.message,
-              code: known.code,
-              statusCode: known.status,
-              extensions: known.extensions,
-            });
-          }
-        } else {
-          deps.hooks?.onError?.(error, { req, method, path, statusCode: 500, user });
+        const known =
+          guarded('mapError', () => deps.mapError?.(error)) ??
+          (error instanceof RouteError ? error : undefined);
+        const statusCode = known?.status ?? 500;
+        guarded('onError', () =>
+          deps.hooks?.onError?.(error, { req, method, path, statusCode, user }),
+        );
+
+        if (!known) {
           if (deps.forwardUnhandledToNext && forward) {
             forward(error);
             return;
           }
           log('Unhandled API error:', error);
+        } else if (known.status >= 500) {
+          log('API Error:', {
+            message: known.message,
+            code: known.code,
+            statusCode: known.status,
+            extensions: known.extensions,
+          });
         }
 
         const problem = (
           known ?? new RouteError('Internal server error', 500, 'INTERNAL_ERROR')
         ).toProblem(path);
-        transport.sendJson(res, problem.status, problem, PROBLEM_CONTENT_TYPE);
+        try {
+          transport.sendJson(res, problem.status, problem, PROBLEM_CONTENT_TYPE);
+        } catch (sendError) {
+          // e.g. a circular value in `extensions`. Answer something rather than hang.
+          log('routerplate: could not serialize the error response', sendError);
+          if (!transport.responseEnded(res)) transport.sendEmpty(res, 500);
+        }
       }
     };
   };

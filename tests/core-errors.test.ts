@@ -253,6 +253,24 @@ describe('errors are RFC 9457 problem details', () => {
     expect(res.jsonBody).toMatchObject({ instance: '/api/items/1' });
   });
 
+  it('a throw inside authenticate is a 500, not a 401 (return null for a bad token)', async () => {
+    const log = vi.fn();
+    const { route, get } = createRoute<{ id: string }>({
+      authenticate: async () => {
+        throw new Error('jwt malformed');
+      },
+      hooks: { log },
+    });
+    const res = mockRes();
+    await route({ GET: get({ handler: async () => ({}) }) })(
+      nextReq({ method: 'GET' }),
+      asNextRes(res),
+    );
+    expect(res.statusCode).toBe(500);
+    expect(res.jsonBody).toMatchObject({ code: 'INTERNAL_ERROR' });
+    expect(log).toHaveBeenCalledWith('Unhandled API error:', expect.any(Error));
+  });
+
   it('onError receives the mapped status from mapError', async () => {
     const onError = vi.fn();
     const { route, get } = createRoute({
@@ -271,5 +289,121 @@ describe('errors are RFC 9457 problem details', () => {
     expect(res.statusCode).toBe(422);
     expect(res.jsonBody).toMatchObject({ title: 'Unprocessable Content', code: 'C' });
     expect(onError.mock.calls[0]?.[1]).toMatchObject({ statusCode: 422 });
+  });
+});
+
+describe('nothing in the error path can hang the request', () => {
+  it('a throwing onError hook is logged; the response still goes out', async () => {
+    const log = vi.fn();
+    const { route, get } = createRoute({
+      hooks: {
+        log,
+        onError: () => {
+          throw new Error('tracker down');
+        },
+      },
+    });
+    const res = mockRes();
+    await route({
+      GET: get({
+        handler: async () => {
+          throw RouteError.notFound();
+        },
+      }),
+    })(nextReq({ method: 'GET' }), asNextRes(res));
+    expect(res.statusCode).toBe(404);
+    expect(res.jsonBody).toMatchObject({ code: 'NOT_FOUND' });
+    expect(log).toHaveBeenCalledWith('routerplate: onError threw', expect.any(Error));
+  });
+
+  it('a throwing mapError counts as unmapped → 500', async () => {
+    const log = vi.fn();
+    const { route, get } = createRoute({
+      hooks: { log },
+      mapError: () => {
+        throw new Error('mapper bug');
+      },
+    });
+    const res = mockRes();
+    await route({
+      GET: get({
+        handler: async () => {
+          throw new Error('original');
+        },
+      }),
+    })(nextReq({ method: 'GET' }), asNextRes(res));
+    expect(res.statusCode).toBe(500);
+    expect(res.jsonBody).toMatchObject({ code: 'INTERNAL_ERROR' });
+    expect(log).toHaveBeenCalledWith('routerplate: mapError threw', expect.any(Error));
+  });
+
+  it('a throwing onBodyValidationFailure hook still yields the 400', async () => {
+    const log = vi.fn();
+    const { route, post } = createRoute({
+      hooks: {
+        log,
+        onBodyValidationFailure: () => {
+          throw new Error('tracker down');
+        },
+      },
+    });
+    const res = mockRes();
+    await route({ POST: post({ body: z.object({ n: z.number() }), handler: async () => ({}) }) })(
+      nextReq({ method: 'POST', body: {} }),
+      asNextRes(res),
+    );
+    expect(res.statusCode).toBe(400);
+    expect(log).toHaveBeenCalledWith(
+      'routerplate: onBodyValidationFailure threw',
+      expect.any(Error),
+    );
+  });
+
+  it('a throwing log hook falls back to console.error', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { route, get } = createRoute({
+      hooks: {
+        log: () => {
+          throw new Error('logger down');
+        },
+      },
+    });
+    const res = mockRes();
+    await route({
+      GET: get({
+        handler: async () => {
+          throw new Error('boom');
+        },
+      }),
+    })(nextReq({ method: 'GET' }), asNextRes(res));
+    expect(res.statusCode).toBe(500);
+    expect(consoleError).toHaveBeenCalledWith(
+      'Unhandled API error:',
+      expect.any(Error),
+      expect.any(Error),
+    );
+    consoleError.mockRestore();
+  });
+
+  it('a problem body that cannot be serialized falls back to an empty 500', async () => {
+    const log = vi.fn();
+    const { route, get } = createRoute({ hooks: { log } });
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const res = mockRes();
+    await route({
+      GET: get({
+        handler: async () => {
+          throw new RouteError('Taken', 409, 'CONFLICT', { circular });
+        },
+      }),
+    })(nextReq({ method: 'GET' }), asNextRes(res));
+    expect(res.statusCode).toBe(500);
+    expect(res.jsonBody).toBeUndefined();
+    expect(res.ended).toBe(true);
+    expect(log).toHaveBeenCalledWith(
+      'routerplate: could not serialize the error response',
+      expect.any(TypeError),
+    );
   });
 });
