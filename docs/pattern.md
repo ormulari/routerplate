@@ -34,22 +34,24 @@ methods get a third schema slot, `params`.
   annotate `ctx` by hand; if a type is wrong, fix the schema.
 - `POST`, `PATCH` and `PUT` declare a `body` schema. Everything but `DELETE`
   declares a `response` schema. Only the fields in it are sent.
-- Handlers return plain values. Object → `{ data }`. Array → `{ data, count }`
-  (`count` is the array length, not a total). `null` → 204.
+- The handler's return value is the response body. `null` → 204.
 - Handlers never touch `res`. To fail, throw `RouteError.notFound()`,
-  `.forbidden()`, `.conflict()` or `new RouteError(message, status, code)`.
+  `.forbidden()`, `.conflict()` or `new RouteError(detail, status, code)`.
 - Auth is on by default. `requireAuth: false` is per method and makes
   `ctx.user` nullable. `authorize(ctx)` returns `false` for a 403.
 
 ## What happens on a request
 
 1. Method dispatch. `OPTIONS` → 204 + `Allow`. `HEAD` runs as `GET` without a body. Unknown → 405.
-2. `authenticate(req, res)`. No user and `requireAuth` not `false` → 401.
+2. `authenticate(req, res)`. No user and `requireAuth` not `false` → 401. A throw → 500.
 3. `extend({ req, res, user })` builds the rest of `ctx`.
 4. `body`, then `query`, then `params` are validated. Any failure → 400.
 5. `authorize(ctx)`, if declared. `false` → 403.
 6. `handler(ctx)`.
-7. The result is validated against `response`, wrapped, and sent with the method's status.
+7. The result is validated against `response` and sent with the method's status.
+
+Anything thrown along the way becomes an RFC 9457 problem; see
+[errors.md](./errors.md).
 
 ## Status codes
 
@@ -61,14 +63,10 @@ methods get a third schema slot, `params`.
 | PUT    | 200     |                                 |
 | DELETE | 204     | handler returns `null`          |
 
-Errors are `{ error, code, details? }`: 400 `VALIDATION_ERROR`, 401
-`UNAUTHORIZED`, 403 `FORBIDDEN`, 405 `METHOD_NOT_ALLOWED`, and 500
-`INTERNAL_ERROR` for anything unexpected (the real error goes to `onError`).
-
 ## Where the services live
 
 One file per app calls `createRoute()` and injects `authenticate`, `extend`,
-`errorToResponse` and hooks. It's the only file that imports your auth module,
+`mapError` and hooks. It's the only file that imports your auth module,
 database client or error tracker. Route files import `route` and the helpers
 from it and nothing else. `npx routerplate init` writes it.
 

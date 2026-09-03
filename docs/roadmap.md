@@ -20,7 +20,7 @@ vs arktype's built-in), and bare handlers have nothing to describe.
 
 Since types flow from schemas, a thin generated client (`api.items.get(id)`)
 could share them end to end. Needs a design for locating route files per
-framework and for the envelope types (`{ data }`, `{ data, count }`).
+framework.
 
 ---
 
