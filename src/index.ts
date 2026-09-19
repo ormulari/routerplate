@@ -41,9 +41,14 @@ export type {
 } from './core/types.js';
 export {
   createRouteRuntime,
+  describeRoute,
+  ROUTE_DESCRIPTION,
+  routeDescription,
+  type Described,
   type EngineDeps,
   type ErasedMethodConfig,
   type ErasedRouteConfig,
+  type RouteDescription,
   type RouteHandler,
   type RouteRuntime,
   type Transport,

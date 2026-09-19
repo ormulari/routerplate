@@ -161,11 +161,25 @@ npx routerplate doctor    # check install, validator, adapter file, ESLint wirin
 
 `init` never installs packages and never overwrites without `--force`. Flags are in [docs/api.md](./docs/api.md#cli).
 
+## OpenAPI
+
+```typescript
+import { openapi } from 'routerplate/openapi';
+
+const doc = openapi({
+  info: { title: 'Items', version: '1.0.0' },
+  paths: { '/items': itemsRoute, '/items/{id}': itemRoute },
+});
+```
+
+Parameters, bodies, responses and the problem+json errors come from the same configs the runtime enforces. Schemas convert through Standard JSON Schema, or a `toJsonSchema` option for validators without it. Details in [docs/openapi.md](./docs/openapi.md).
+
 ## Docs
 
 - [The pattern](./docs/pattern.md): the contract and what happens on a request.
 - [API reference](./docs/api.md): every option, helper field, type and CLI flag.
 - [Error handling](./docs/errors.md): the problem format, logging, hooks, and the body-parser gap.
+- [OpenAPI](./docs/openapi.md): the document `openapi()` builds and how schemas convert.
 - [Limits and gaps](./docs/limitations.md): what routerplate doesn't do and what the lint can't see.
 - Recipes: [Supabase](./docs/recipes/supabase.md) · [Clerk](./docs/recipes/clerk.md) · [Auth.js](./docs/recipes/auth-js.md).
 - [Roadmap](./docs/roadmap.md).

@@ -5,6 +5,7 @@ export default defineConfig({
     index: 'src/index.ts',
     next: 'src/adapters/next.ts',
     express: 'src/adapters/express.ts',
+    openapi: 'src/openapi/index.ts',
     'eslint-plugin': 'src/eslint-plugin/index.ts',
   },
   format: ['esm', 'cjs'],

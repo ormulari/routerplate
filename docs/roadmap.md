@@ -5,14 +5,36 @@ whenever there's appetite.
 
 ---
 
-## OpenAPI generation from route configs
+## OpenAPI follow-ups
 
-Route configs already carry everything an OpenAPI path item needs (method,
-query/params/body schemas, response schema, status map). Proposal: a
-`routerplate openapi` CLI command that statically imports route modules and
-emits an OpenAPI 3.1 document. Blockers to discuss: schema→JSON-Schema
-conversion is validator-specific (zod-to-json-schema vs @valibot/to-json-schema
-vs arktype's built-in), and bare handlers have nothing to describe.
+`routerplate/openapi` covers what the runtime enforces
+([openapi.md](./openapi.md)). What it does not cover yet:
+
+- **A CLI.** `routerplate openapi` that finds routes itself needs a TypeScript
+  loader (route files import extensionless `.ts` paths, which Node cannot
+  resolve without tsx or a bundler) and, on Express, a source of paths, which
+  live in `app.all()` calls and not in the config. A Next-only version could
+  derive paths from `pages/api/**` when tsx is installed.
+- **Handler-declared errors.** `RouteError.notFound()` and `mapError` results
+  are invisible statically. A method slot such as `errors: [404, 409]` would
+  document them, at the cost of widening the config the types and lint rules
+  are built around.
+- **Operation metadata.** `operationId`, `summary`, `tags`, `security`. Client
+  generators want `operationId` at least. Same trade as above, or a documented
+  post-processing step on the returned object.
+- **Shared schemas as components.** Schemas are inlined per operation. Standard
+  Schema carries no name, so `$ref`s need a `components: { Item: ItemSchema }`
+  option matched by identity.
+- **Zod and Valibot without `toJsonSchema`.** Neither ships
+  `~standard.jsonSchema` today, so the scaffold's default validator needs the
+  option on the first call. Nothing to build: once they ship it, the option
+  becomes unnecessary.
+- **The Express template.** It mounts `route()` inline on a `Router`, so
+  nothing is exported and the full path is not known in the file. Exporting
+  the handlers and mounting them by name would make the scaffold documentable
+  as written.
+- **Express path patterns** beyond `:id` (regex, optional, wildcard) are not
+  converted to `{id}`.
 
 ---
 

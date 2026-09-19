@@ -46,6 +46,16 @@
         "default": "./dist/express.cjs"
       }
     },
+    "./openapi": {
+      "import": {
+        "types": "./dist/openapi.d.ts",
+        "default": "./dist/openapi.js"
+      },
+      "require": {
+        "types": "./dist/openapi.d.cts",
+        "default": "./dist/openapi.cjs"
+      }
+    },
     "./eslint-plugin": {
       "import": {
         "types": "./dist/eslint-plugin.d.ts",
@@ -90,6 +100,7 @@
     "express",
     "next",
     "api",
+    "openapi",
     "typescript",
     "eslint"
   ],

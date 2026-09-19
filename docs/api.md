@@ -30,7 +30,7 @@ Hooks are observability only. A throwing hook is logged and the response is unaf
 
 ## `route(definition)`
 
-Takes an object with any of `GET`, `POST`, `PATCH`, `PUT`, `DELETE`, each a helper-built `MethodConfig`. On Express it returns a `RequestHandler`; mount it with `app.all(path, route({ ... }))`. On Next it returns a `NextApiHandler`; `export default` it.
+Takes an object with any of `GET`, `POST`, `PATCH`, `PUT`, `DELETE`, each a helper-built `MethodConfig`. On Express it returns a `RequestHandler`; mount it with `app.all(path, route({ ... }))`. On Next it returns a `NextApiHandler`; `export default` it. Either way the result also carries its `RouteDescription`, which is what [`openapi()`](#openapioptions) accepts; nothing changes for apps that never call it.
 
 `route()` throws when it is called, not on the first request, if:
 
@@ -113,7 +113,22 @@ Return this from `authenticate` when one object yields both the user and request
 
 The returned runtime takes a route definition and returns `(req, res, forward?) => Promise<void>`. `forward` is Express's `next`; pass it if your framework has an equivalent. The Express and Next adapters in `src/adapters/` are the reference implementations, about 60 lines each after the types.
 
+The returned handler carries a `RouteDescription` (`{ config, authenticates }`) under the `ROUTE_DESCRIPTION` symbol; `routerplate/openapi` reads it. If your `route()` wraps the handler, copy it over: `describeRoute(wrapper, handle[ROUTE_DESCRIPTION])`. `routeDescription(value)` reads it back, or `undefined` for anything else.
+
 Also exported for adapters: `isStandardSchema`, `validateSchema`, `toProblemErrors`, `brandMethodConfig`, `isMethodConfig`.
+
+## `openapi(options)`
+
+From `routerplate/openapi`. Builds an OpenAPI 3.1 document from `route()` results. Framework-free and validator-free like the core.
+
+| Option         | Type                                               | Notes                                                                                                                |
+| -------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `info`         | `{ title, version, ... }`                          | The OpenAPI info object.                                                                                             |
+| `servers`      | `{ url, description? }[]`                          | Optional.                                                                                                            |
+| `paths`        | `Record<string, route() result>`                   | Path template to route: `'/items/{id}'` or Express's `'/items/:id'`. A plain handler is a type error.                |
+| `toJsonSchema` | `(schema, use: 'input' \| 'output') => JsonSchema` | Default: the schema's own `~standard.jsonSchema`, draft 2020-12. Required for validators without one (Zod, Valibot). |
+
+Throws for a value that is not a `route()` result, a schema it cannot convert, a `query`/`params` schema that is not an object, or a `params` property missing from the template. What each config field becomes is in [openapi.md](./openapi.md).
 
 ## ESLint plugin
 

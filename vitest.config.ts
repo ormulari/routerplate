@@ -19,7 +19,7 @@ export default defineConfig({
     testTimeout: 60000,
     coverage: {
       provider: 'v8',
-      include: ['src/core/**', 'src/validators/**'],
+      include: ['src/core/**', 'src/openapi/**', 'src/validators/**'],
       thresholds: {
         lines: 90,
       },
