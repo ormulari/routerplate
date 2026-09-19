@@ -11,7 +11,8 @@ import { toProblemErrors, validateSchema } from '../validators/standard-schema.j
  * method dispatch, auth, validation, status codes, and errors.
  */
 
-const DEFAULT_STATUS_CODES: Record<HttpMethod, number> = {
+/** Success status per method. Contract: changing one is a breaking change. */
+export const DEFAULT_STATUS_CODES: Record<HttpMethod, number> = {
   GET: 200,
   POST: 201,
   PATCH: 200,
@@ -19,7 +20,7 @@ const DEFAULT_STATUS_CODES: Record<HttpMethod, number> = {
   DELETE: 204,
 };
 
-const METHODS: readonly HttpMethod[] = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'];
+export const METHODS: readonly HttpMethod[] = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'];
 const MUTATING_METHODS: readonly HttpMethod[] = ['POST', 'PATCH', 'PUT'];
 const HELPER_NAMES: Record<HttpMethod, string> = {
   GET: 'get',
@@ -88,11 +89,40 @@ export interface EngineDeps<Req, Res, User, Extras extends object> extends Route
   forwardUnhandledToNext?: boolean;
 }
 
-export type RouteHandler<Req, Res> = (
-  req: Req,
-  res: Res,
-  forward?: (error: unknown) => void,
-) => Promise<void>;
+/**
+ * Every `route()` result carries its config under this key so tooling
+ * (`routerplate/openapi`) can read what the runtime enforces.
+ * `Symbol.for` keeps it stable across the ESM and CJS builds.
+ */
+export const ROUTE_DESCRIPTION: unique symbol = Symbol.for('routerplate.routeDescription');
+
+export interface RouteDescription {
+  config: ErasedRouteConfig;
+  /** Whether the runtime has an `authenticate`, i.e. whether any method can answer 401. */
+  authenticates: boolean;
+}
+
+export type Described<T> = T & { readonly [ROUTE_DESCRIPTION]: RouteDescription };
+
+/** Attach a description to a handler. Adapters call this on what `route()` returns. */
+export function describeRoute<T extends object>(
+  handler: T,
+  description: RouteDescription,
+): Described<T> {
+  return Object.assign(handler, { [ROUTE_DESCRIPTION]: description });
+}
+
+/** The description of a `route()` result, or `undefined` for anything else. */
+export function routeDescription(handler: unknown): RouteDescription | undefined {
+  if (typeof handler !== 'function' && (typeof handler !== 'object' || handler === null)) {
+    return undefined;
+  }
+  return (handler as { [ROUTE_DESCRIPTION]?: RouteDescription })[ROUTE_DESCRIPTION];
+}
+
+export type RouteHandler<Req, Res> = Described<
+  (req: Req, res: Res, forward?: (error: unknown) => void) => Promise<void>
+>;
 
 export type RouteRuntime<Req, Res> = (config: ErasedRouteConfig) => RouteHandler<Req, Res>;
 
@@ -149,7 +179,7 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
 
     const allow = METHODS.filter((method) => config[method] !== undefined).join(', ');
 
-    return async function handle(req, res, forward) {
+    async function handle(req: Req, res: Res, forward?: (error: unknown) => void): Promise<void> {
       let user: User | null = null;
       try {
         const rawMethod = (transport.method(req) ?? '').toUpperCase();
@@ -314,6 +344,8 @@ export function createRouteRuntime<Req, Res, User, Extras extends object>(
           if (!transport.responseEnded(res)) transport.sendEmpty(res, 500);
         }
       }
-    };
+    }
+
+    return describeRoute(handle, { config, authenticates: Boolean(deps.authenticate) });
   };
 }

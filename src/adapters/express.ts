@@ -1,6 +1,8 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import {
   createRouteRuntime,
+  describeRoute,
+  ROUTE_DESCRIPTION,
   type ErasedMethodConfig,
   type ErasedRouteConfig,
   type RouteRuntime,
@@ -195,7 +197,10 @@ function buildHelpers<User, Extras extends object>(runtime: RouteRuntime<Request
   /** Dispatching RequestHandler: mount with `app.all(path, route({...}))`. */
   function route(config: RouteDefinition): RequestHandler {
     const handle = runtime(config);
-    return (req: Request, res: Response, next: NextFunction) => void handle(req, res, next);
+    return describeRoute(
+      (req: Request, res: Response, next: NextFunction) => void handle(req, res, next),
+      handle[ROUTE_DESCRIPTION],
+    );
   }
 
   function get<

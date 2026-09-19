@@ -1,6 +1,8 @@
 import type { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 import {
   createRouteRuntime,
+  describeRoute,
+  ROUTE_DESCRIPTION,
   type ErasedMethodConfig,
   type ErasedRouteConfig,
   type RouteRuntime,
@@ -174,7 +176,10 @@ function buildHelpers<User, Extras extends object>(
   /** NextApiHandler: `export default route({...})` from a pages API file. */
   function route(config: RouteDefinition): NextApiHandler {
     const handle = runtime(config);
-    return (req: NextApiRequest, res: NextApiResponse) => handle(req, res);
+    return describeRoute(
+      (req: NextApiRequest, res: NextApiResponse) => handle(req, res),
+      handle[ROUTE_DESCRIPTION],
+    );
   }
 
   function get<
