@@ -5,14 +5,15 @@ whenever there's appetite.
 
 ---
 
-## OpenAPI generation from route configs
+## `routerplate openapi` CLI
 
-Route configs already carry everything an OpenAPI path item needs (method,
-query/params/body schemas, response schema, status map). Proposal: a
-`routerplate openapi` CLI command that statically imports route modules and
-emits an OpenAPI 3.1 document. Blockers to discuss: schema→JSON-Schema
-conversion is validator-specific (zod-to-json-schema vs @valibot/to-json-schema
-vs arktype's built-in), and bare handlers have nothing to describe.
+`routerplate/openapi` builds the document from `route()` results
+([openapi.md](./openapi.md)); the paths are listed by hand. A command that
+finds routes itself would need a TypeScript loader (route files import
+extensionless `.ts` paths, which Node cannot resolve without tsx or a bundler)
+and, on Express, a source of paths, which live in `app.all()` calls and not in
+the config. A Next-only version could derive paths from `pages/api/**` when tsx
+is installed.
 
 ---
 
