@@ -3,6 +3,7 @@ import {
   createRouteRuntime,
   describeRoute,
   ROUTE_DESCRIPTION,
+  type Described,
   type ErasedMethodConfig,
   type ErasedRouteConfig,
   type RouteRuntime,
@@ -173,8 +174,12 @@ const transport: Transport<NextApiRequest, NextApiResponse> = {
 function buildHelpers<User, Extras extends object>(
   runtime: RouteRuntime<NextApiRequest, NextApiResponse>,
 ) {
-  /** NextApiHandler: `export default route({...})` from a pages API file. */
-  function route(config: RouteDefinition): NextApiHandler {
+  /**
+   * NextApiHandler: `export default route({...})` from a pages API file.
+   * It also carries its description, which is what `routerplate/openapi`
+   * accepts; a plain handler is a type error there.
+   */
+  function route(config: RouteDefinition): Described<NextApiHandler> {
     const handle = runtime(config);
     return describeRoute(
       (req: NextApiRequest, res: NextApiResponse) => handle(req, res),

@@ -3,6 +3,7 @@ import {
   createRouteRuntime,
   describeRoute,
   ROUTE_DESCRIPTION,
+  type Described,
   type ErasedMethodConfig,
   type ErasedRouteConfig,
   type RouteRuntime,
@@ -194,8 +195,12 @@ const transport: Transport<Request, Response> = {
 };
 
 function buildHelpers<User, Extras extends object>(runtime: RouteRuntime<Request, Response>) {
-  /** Dispatching RequestHandler: mount with `app.all(path, route({...}))`. */
-  function route(config: RouteDefinition): RequestHandler {
+  /**
+   * Dispatching RequestHandler: mount with `app.all(path, route({...}))`.
+   * It also carries its description, which is what `routerplate/openapi`
+   * accepts; a plain handler is a type error there.
+   */
+  function route(config: RouteDefinition): Described<RequestHandler> {
     const handle = runtime(config);
     return describeRoute(
       (req: Request, res: Response, next: NextFunction) => void handle(req, res, next),

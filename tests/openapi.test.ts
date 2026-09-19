@@ -211,10 +211,15 @@ describe('openapi(): the document', () => {
 describe('openapi(): what it refuses', () => {
   const { route, get } = createExpressRoute();
 
-  it('anything that is not a route() result', () => {
-    expect(() => openapi({ info, paths: { '/x': () => undefined } })).toThrow(
-      /"\/x" is not a route\(\) result/,
-    );
+  it('anything that is not a route() result: a type error, and a throw for JavaScript callers', () => {
+    const plainHandler = () => undefined;
+    expect(() =>
+      openapi({
+        info,
+        // @ts-expect-error only what route() returned carries a description
+        paths: { '/x': plainHandler },
+      }),
+    ).toThrow(/"\/x" is not a route\(\) result/);
   });
 
   it('a schema without Standard JSON Schema when toJsonSchema is not given', () => {

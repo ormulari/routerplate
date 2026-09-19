@@ -3,6 +3,7 @@ import {
   DEFAULT_STATUS_CODES,
   METHODS,
   routeDescription,
+  type Described,
   type ErasedMethodConfig,
 } from '../core/engine.js';
 import { PROBLEM_CONTENT_TYPE } from '../core/errors.js';
@@ -39,8 +40,12 @@ export interface OpenApiServer {
   description?: string;
 }
 
-/** What `route()` returns, on any adapter. */
-export type RouteLike = (...args: never[]) => unknown;
+/**
+ * What `route()` returns, on any adapter: a handler carrying its
+ * description. A plain handler does not typecheck here; JavaScript
+ * callers get the same answer as a throw.
+ */
+export type DescribedRoute = Described<object>;
 
 export type SchemaUse = 'input' | 'output';
 
@@ -48,7 +53,7 @@ export interface OpenApiOptions {
   info: OpenApiInfo;
   servers?: OpenApiServer[];
   /** Path templates to routes: `'/items/{id}'` (Express's `'/items/:id'` works too). */
-  paths: Record<string, RouteLike>;
+  paths: Record<string, DescribedRoute>;
   /**
    * Convert a schema to JSON Schema (draft 2020-12). `use` is `'input'`
    * for `body`, `query` and `params` (what the client sends) and
