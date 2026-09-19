@@ -21,7 +21,7 @@ const doc = openapi({
 fs.writeFileSync('openapi.json', JSON.stringify(doc, null, 2));
 ```
 
-`paths` maps a path template to what `route()` returned, so the route file has to export it. On Express: `export const itemRoute = route({ ... })`, then `app.all('/items/:id', itemRoute)`. On Next it is the default export already; the template is the file path with `[id]` written as `{id}`.
+`paths` maps a path template to what `route()` returned, so the route file has to export it. On Express: `export const itemRoute = route({ ... })`, then `app.all('/items/:id', itemRoute)`. On Next it is the default export already; the template is the file path with `[id]` written as `{id}`. Only `route()` results typecheck as values; a plain handler is rejected by the types, and by a throw for JavaScript callers.
 
 Nothing is written to disk. Run the snippet from a script (`npx tsx scripts/openapi.ts`) and commit the output, or serve it from a route.
 
